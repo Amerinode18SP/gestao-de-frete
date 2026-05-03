@@ -9,13 +9,29 @@ function normalizarChave(str) {
     .replace(/\s+/g, '_')
 }
 
-// Converte data DD/MM/AAAA → YYYY-MM-DD (ou devolve como está se já no formato ISO)
+// Converte data em qualquer formato → YYYY-MM-DD
 function parseData(valor) {
   if (!valor) return null
   const s = String(valor).trim()
+  if (!s) return null
+  // YYYY-MM-DD (já correto)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  const [d, m, a] = s.split('/')
-  if (d && m && a) return `${a}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
+  // YYYY-MM-DD HH:mm:ss (Excel datetime)
+  if (/^\d{4}-\d{2}-\d{2} /.test(s)) return s.split(' ')[0]
+  // YYYY-MM-DDTHH:mm (ISO)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.split('T')[0]
+  // DD/MM/YYYY
+  const partes = s.split('/')
+  if (partes.length === 3) {
+    const [d, m, a] = partes
+    if (a && a.length === 4) return `${a}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
+  }
+  // MM/DD/YYYY (formato americano)
+  const partesUS = s.split('/')
+  if (partesUS.length === 3 && partesUS[2].length === 4) {
+    const [m, d, a] = partesUS
+    return `${a}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`
+  }
   return null
 }
 
@@ -49,7 +65,7 @@ async function importar(req, res) {
       const lin = i + 2 // linha real no Excel (cabeçalho = 1)
 
       // Campos obrigatórios
-      const obrigatorios = ['placa','localidade','supervisor','nota_fiscal','data_ordem','categoria','item','fornecedor','cnpj']
+      const obrigatorios = ['placa','localidade','supervisor','nota_fiscal','categoria','item','fornecedor','cnpj']
       const faltando = obrigatorios.filter(c => !r[c])
       if (faltando.length) {
         erros.push({ linha: lin, erro: `Campos obrigatórios faltando: ${faltando.join(', ')}` })
@@ -97,7 +113,7 @@ async function importar(req, res) {
             num_ordem:     r.num_ordem  ? r.num_ordem.toString().trim()  : null,
             link_ordem:    r.link_ordem ? r.link_ordem.toString().trim() : null,
             nota_fiscal:   r.nota_fiscal.toString().trim(),
-            data_ordem:    parseData(r.data_ordem),
+            data_ordem:    parseData(r.data_ordem) || new Date().toISOString().split('T')[0],
             categoria:     r.categoria === 'Servico' ? 'Serviço' : r.categoria,
             item:          r.item.toString().trim(),
             valor_item:    vi,
