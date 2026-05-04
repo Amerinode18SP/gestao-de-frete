@@ -110,7 +110,7 @@ async function criar(req, res) {
 // ── Atualizar ordem ──────────────────────────────────────────────────────────
 async function atualizar(req, res) {
   try {
-    const { fornecedor, cnpj, ...campos } = req.body
+    const { fornecedor, cnpj, placa, localidade, km_atual, proxima_revisao, ...campos } = req.body
 
     if (campos.valor_item !== undefined || campos.quantidade !== undefined) {
       const vi = parseFloat(campos.valor_item) || 0
@@ -118,18 +118,29 @@ async function atualizar(req, res) {
       campos.valor_total = vi * qt
     }
 
-    // Remover campos que não existem na tabela ordens
-    delete campos.fornecedor
-    delete campos.cnpj
+    // Buscar a ordem para pegar o veiculo_id
+    const { data: ordemAtual } = await supabase
+      .from('ordens').select('veiculo_id, fornecedor_id').eq('id', req.params.id).single()
 
-    // Se fornecedor/cnpj foram enviados, atualizar tabela fornecedores
-    if (fornecedor && cnpj) {
-      const cnpjLimpo = cnpj.toString().replace(/\D/g, '')
-      await supabase
-        .from('fornecedores')
-        .upsert({ razao_social: fornecedor, cnpj: cnpjLimpo }, { onConflict: 'cnpj' })
+    // Atualizar veículo se campos foram enviados
+    if (ordemAtual?.veiculo_id && (km_atual !== undefined || proxima_revisao !== undefined || placa || localidade)) {
+      const veiculoUpdate = {}
+      if (placa)       veiculoUpdate.placa = placa.toUpperCase().trim()
+      if (localidade)  veiculoUpdate.localidade = localidade.trim()
+      if (km_atual !== undefined) veiculoUpdate.km_atual = km_atual
+      if (proxima_revisao !== undefined) veiculoUpdate.proxima_revisao = proxima_revisao || null
+      await supabase.from('veiculos').update({ ...veiculoUpdate, updated_at: new Date().toISOString() }).eq('id', ordemAtual.veiculo_id)
     }
 
+    // Atualizar fornecedor se enviado
+    if (fornecedor && cnpj) {
+      const cnpjLimpo = cnpj.toString().replace(/\D/g, '')
+      if (cnpjLimpo && ordemAtual?.fornecedor_id) {
+        await supabase.from('fornecedores').update({ razao_social: fornecedor, updated_at: new Date().toISOString() }).eq('id', ordemAtual.fornecedor_id)
+      }
+    }
+
+    // Atualizar ordem
     const { data, error } = await supabase
       .from('ordens')
       .update({ ...campos, updated_at: new Date().toISOString() })
