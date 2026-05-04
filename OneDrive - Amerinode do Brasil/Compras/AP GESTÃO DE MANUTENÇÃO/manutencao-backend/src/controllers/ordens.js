@@ -110,11 +110,24 @@ async function criar(req, res) {
 // ── Atualizar ordem ──────────────────────────────────────────────────────────
 async function atualizar(req, res) {
   try {
-    const campos = req.body
+    const { fornecedor, cnpj, ...campos } = req.body
+
     if (campos.valor_item !== undefined || campos.quantidade !== undefined) {
       const vi = parseFloat(campos.valor_item) || 0
       const qt = parseInt(campos.quantidade)  || 1
       campos.valor_total = vi * qt
+    }
+
+    // Remover campos que não existem na tabela ordens
+    delete campos.fornecedor
+    delete campos.cnpj
+
+    // Se fornecedor/cnpj foram enviados, atualizar tabela fornecedores
+    if (fornecedor && cnpj) {
+      const cnpjLimpo = cnpj.toString().replace(/\D/g, '')
+      await supabase
+        .from('fornecedores')
+        .upsert({ razao_social: fornecedor, cnpj: cnpjLimpo }, { onConflict: 'cnpj' })
     }
 
     const { data, error } = await supabase
