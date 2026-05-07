@@ -3,7 +3,7 @@ const supabase = require('../supabase')
 // ── Listar ordens (com filtros) ───────────────────────────────────────────────
 async function listar(req, res) {
   try {
-    const { status, categoria, placa, supervisor, origem,
+    const { status, categoria, placa, supervisor, origem, num_ordem, item,
             data_inicio, data_fim, page = 1, limit = 50 } = req.query
 
     let query = supabase
@@ -20,6 +20,8 @@ async function listar(req, res) {
     if (categoria)   query = query.eq('categoria', categoria)
     if (origem)      query = query.eq('origem', origem)
     if (placa)       query = query.ilike('veiculos.placa', `%${placa}%`)
+    if (num_ordem)   query = query.ilike('num_ordem', `%${num_ordem}%`)
+    if (item)        query = query.ilike('item', `%${item}%`)
     if (data_inicio) query = query.gte('data_ordem', data_inicio)
     if (data_fim)    query = query.lte('data_ordem', data_fim)
 
