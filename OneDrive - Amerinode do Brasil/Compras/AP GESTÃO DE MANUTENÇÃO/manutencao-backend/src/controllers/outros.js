@@ -54,7 +54,7 @@ async function atualizarVeiculo(req, res) {
   }
 }
 
-
+async function listarFornecedores(req, res) {
   try {
     const { data, error } = await supabase
       .from('fornecedores')
