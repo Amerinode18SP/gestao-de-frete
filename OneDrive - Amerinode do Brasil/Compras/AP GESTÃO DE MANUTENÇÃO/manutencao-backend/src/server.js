@@ -3,11 +3,12 @@ const express = require('express')
 const cors    = require('cors')
 const path    = require('path')
 
-const ordensRoutes    = require('./routes/ordens')
-const veiculosRoutes  = require('./routes/veiculos')
+const ordensRoutes      = require('./routes/ordens')
+const veiculosRoutes    = require('./routes/veiculos')
 const fornecedoresRoutes = require('./routes/fornecedores')
-const importRoutes    = require('./routes/importar')
-const dashboardRoutes = require('./routes/dashboard')
+const importRoutes      = require('./routes/importar')
+const dashboardRoutes   = require('./routes/dashboard')
+const manutencaoRoutes  = require('./routes/manutencao')
 
 const app  = express()
 const PORT = process.env.PORT || 3000
@@ -31,6 +32,7 @@ app.use('/api/veiculos',     veiculosRoutes)
 app.use('/api/fornecedores', fornecedoresRoutes)
 app.use('/api/importar',     importRoutes)
 app.use('/api/dashboard',    dashboardRoutes)
+app.use('/api/manutencao',   manutencaoRoutes)
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

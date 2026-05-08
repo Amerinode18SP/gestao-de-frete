@@ -85,8 +85,44 @@ CREATE OR REPLACE TRIGGER trg_ordens_updated_at
   BEFORE UPDATE ON ordens
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ── Tabela: manutencoes ──────────────────────────────────────
+-- Controle de veículos em manutenção ativa (sem ordem de compra)
+CREATE TABLE IF NOT EXISTS manutencoes (
+  id                UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+  placa             VARCHAR(10)  NOT NULL,
+  modelo            VARCHAR(100),
+  localidade        VARCHAR(100),
+  supervisor        VARCHAR(100),
+  data_entrada      DATE         NOT NULL,
+  data_saida        DATE,
+  previsao_retorno  DATE,
+  dias_previstos    INTEGER,
+  tipo_manutencao   VARCHAR(50)  DEFAULT 'Corretiva'
+                    CHECK (tipo_manutencao IN ('Corretiva','Preventiva','Revisão','Sinistro','Outro')),
+  veiculo_alugado   BOOLEAN      DEFAULT false,
+  veiculo_devolvido BOOLEAN      DEFAULT false,
+  data_devolucao    DATE,
+  num_os            VARCHAR(100),
+  status            VARCHAR(30)  DEFAULT 'Em Andamento'
+                    CHECK (status IN ('Em Andamento','Retornado','Cancelado')),
+  observacoes       TEXT,
+  convertido_ordem  BOOLEAN      DEFAULT false,
+  ordem_id          UUID         REFERENCES ordens(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ  DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_manutencoes_placa    ON manutencoes(placa);
+CREATE INDEX IF NOT EXISTS idx_manutencoes_status   ON manutencoes(status);
+CREATE INDEX IF NOT EXISTS idx_manutencoes_entrada  ON manutencoes(data_entrada);
+
+CREATE OR REPLACE TRIGGER trg_manutencoes_updated_at
+  BEFORE UPDATE ON manutencoes
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 -- ── Row Level Security (RLS) — recomendado para produção ─────
 -- Descomente abaixo quando adicionar autenticação de usuários:
--- ALTER TABLE veiculos    ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE fornecedores ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE ordens      ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE veiculos      ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE fornecedores  ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE ordens        ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE manutencoes   ENABLE ROW LEVEL SECURITY;

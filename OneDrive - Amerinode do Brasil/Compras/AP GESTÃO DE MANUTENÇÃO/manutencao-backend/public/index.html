@@ -285,6 +285,7 @@ tr:hover td{background:#F9F9F9}
   <div class="nav-item" id="nav-importar" onclick="showPage('importar')">📥 Importar Excel</div>
   <div class="nav-item" onclick="showPage('revisoes')">🛡️ Próximas Revisões</div>
   <div class="nav-item" onclick="showPage('relatorios')">📑 Relatórios</div>
+  <div class="nav-item" onclick="showPage('manutencao')">🔧 Em Manutenção</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" onclick="showPage('usuarios')">👥 Usuários</div>
   <div class="sidebar-bottom">
@@ -573,6 +574,86 @@ tr:hover td{background:#F9F9F9}
       </div>
     </div>
 
+    <!-- EM MANUTENÇÃO -->
+    <div id="page-manutencao" class="page">
+
+      <!-- KPIs -->
+      <div class="stats-grid" id="man-stats-grid">
+        <div class="stat-card"><div class="stat-label">🔧 Em Andamento</div><div class="stat-value" id="man-kpi-andamento">—</div><div class="stat-sub">Veículos na oficina agora</div></div>
+        <div class="stat-card"><div class="stat-label">🚗 Alugados Ativos</div><div class="stat-value" id="man-kpi-alugados">—</div><div class="stat-sub">Veículos alugados em uso</div></div>
+        <div class="stat-card"><div class="stat-label">⚠️ Em Atraso</div><div class="stat-value" id="man-kpi-atraso" style="color:#791F1F">—</div><div class="stat-sub">Prazo vencido, não retornado</div></div>
+        <div class="stat-card"><div class="stat-label">✅ Retornados no Mês</div><div class="stat-value" id="man-kpi-retornados">—</div><div class="stat-sub">Média <span id="man-kpi-media">—</span> dias na oficina</div></div>
+      </div>
+
+      <!-- Gráfico + Rankings -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div class="card chart-card">
+          <div class="card-header">
+            <span class="card-title">📈 Entradas por Período</span>
+            <div class="chart-controls">
+              <div class="seg" id="man-gran-bar">
+                <button class="active" data-g="mes" onclick="setManGran('mes',this)">Mês</button>
+                <button data-g="ano" onclick="setManGran('ano',this)">Ano</button>
+              </div>
+            </div>
+          </div>
+          <canvas id="man-chart" height="200"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🏆 Ranking</span>
+            <div class="chart-controls">
+              <div class="seg" id="man-rank-bar">
+                <button class="active" data-r="localidade" onclick="setManRank('localidade',this)">Localidade</button>
+                <button data-r="supervisor" onclick="setManRank('supervisor',this)">Supervisor</button>
+                <button data-r="tipo" onclick="setManRank('tipo',this)">Tipo</button>
+              </div>
+            </div>
+          </div>
+          <div id="man-rank-cont" style="max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+      <!-- Lista + Filtros -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Lista de Manutenções</span>
+          <button class="btn btn-primary" onclick="abrirNovaManutencao()">+ Novo Registro</button>
+        </div>
+        <!-- Filtros -->
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group"><label>Status</label>
+            <select id="man-f-status" onchange="carregarManutencao()">
+              <option value="">Todos</option>
+              <option value="Em Andamento">Em Andamento</option>
+              <option value="Retornado">Retornado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Placa</label><input id="man-f-placa" placeholder="Buscar placa..." oninput="carregarManutencao()"></div>
+          <div class="form-group"><label>Localidade</label><input id="man-f-localidade" placeholder="Filtrar..." oninput="carregarManutencao()"></div>
+          <div class="form-group"><label>Tipo</label>
+            <select id="man-f-tipo" onchange="carregarManutencao()">
+              <option value="">Todos</option>
+              <option>Corretiva</option><option>Preventiva</option><option>Revisão</option><option>Sinistro</option><option>Outro</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Placa</th><th>Modelo</th><th>Localidade</th><th>Supervisor</th>
+              <th>Entrada</th><th>Previsão Retorno</th><th>Dias</th><th>Tipo</th>
+              <th>Alugado</th><th>Status</th><th>Nº OS</th><th>Obs.</th><th>Ações</th>
+            </tr></thead>
+            <tbody id="man-table"><tr><td colspan="13" class="loading"><span class="spinner"></span>Carregando...</td></tr></tbody>
+          </table>
+        </div>
+        <div id="man-pag" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px"></div>
+      </div>
+
+    </div><!-- /page-manutencao -->
+
   </div>
 </div>
 </div>
@@ -585,6 +666,80 @@ tr:hover td{background:#F9F9F9}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
       <button class="btn btn-primary" onclick="salvarEdicao()">Salvar alterações</button>
       <button class="btn" onclick="closeModal('edit-modal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOVA MANUTENÇÃO -->
+<div class="modal-overlay" id="modal-nova-manutencao">
+  <div class="modal" style="max-width:680px">
+    <h3 id="man-modal-title">Registrar Manutenção</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Placa *</label><input id="man-placa" placeholder="Ex: ABC1234" style="text-transform:uppercase"></div>
+      <div class="form-group"><label>Modelo</label><input id="man-modelo" placeholder="Ex: KWID, IVECO..."></div>
+      <div class="form-group"><label>Localidade</label><input id="man-localidade" placeholder="Cidade / filial"></div>
+      <div class="form-group"><label>Supervisor</label><input id="man-supervisor" placeholder="Nome do supervisor"></div>
+      <div class="form-group"><label>Data Entrada *</label><input type="date" id="man-data-entrada"></div>
+      <div class="form-group"><label>Previsão de Retorno</label><input type="date" id="man-previsao-retorno"></div>
+      <div class="form-group"><label>Dias Previstos</label><input type="number" id="man-dias-previstos" placeholder="Ex: 5" min="0"></div>
+      <div class="form-group"><label>Tipo de Manutenção</label>
+        <select id="man-tipo">
+          <option>Corretiva</option><option>Preventiva</option><option>Revisão</option><option>Sinistro</option><option>Outro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Nº OS / Sinistro</label><input id="man-num-os" placeholder="Ex: OS-1234 / SIN-987"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="man-status">
+          <option value="Em Andamento">Em Andamento</option>
+          <option value="Retornado">Retornado</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:22px">
+        <input type="checkbox" id="man-alugado" onchange="toggleDevolucao()">
+        <label for="man-alugado" style="margin:0">Veículo Alugado?</label>
+      </div>
+      <div class="form-group" id="man-devol-wrap" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;padding-top:22px">
+          <input type="checkbox" id="man-devolvido">
+          <label for="man-devolvido" style="margin:0">Devolvido?</label>
+        </div>
+      </div>
+      <div class="form-group" id="man-data-devol-wrap" style="display:none"><label>Data Devolução</label><input type="date" id="man-data-devolucao"></div>
+      <div class="form-group"><label>Data Saída da Oficina</label><input type="date" id="man-data-saida"></div>
+    </div>
+    <div class="form-group" style="margin-top:12px"><label>Observações</label><textarea id="man-observacoes" rows="2" placeholder="Informações adicionais..."></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
+      <button class="btn btn-primary" onclick="salvarManutencao()">Salvar</button>
+      <button class="btn" onclick="closeModal('modal-nova-manutencao')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONVERTER EM ORDEM -->
+<div class="modal-overlay" id="modal-converter-ordem">
+  <div class="modal" style="max-width:580px">
+    <h3>Converter em Ordem de Compra</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:16px">Informe os dados da ordem de compra para este serviço.</p>
+    <input type="hidden" id="conv-man-id">
+    <div class="form-grid">
+      <div class="form-group"><label>Fornecedor *</label><input id="conv-fornecedor" placeholder="Razão social"></div>
+      <div class="form-group"><label>CNPJ *</label><input id="conv-cnpj" placeholder="00.000.000/0000-00"></div>
+      <div class="form-group"><label>Nota Fiscal *</label><input id="conv-nota-fiscal" placeholder="Nº da nota fiscal"></div>
+      <div class="form-group"><label>Data da Ordem</label><input type="date" id="conv-data-ordem"></div>
+      <div class="form-group"><label>Item / Serviço *</label><input id="conv-item" placeholder="Ex: Revisão corretiva"></div>
+      <div class="form-group"><label>Categoria</label>
+        <select id="conv-categoria"><option value="Serviço">Serviço</option><option value="Produto">Produto</option></select>
+      </div>
+      <div class="form-group"><label>Valor Unitário (R$)</label><input type="number" id="conv-valor-item" placeholder="0,00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Quantidade</label><input type="number" id="conv-quantidade" value="1" min="1"></div>
+      <div class="form-group"><label>Nº Ordem de Compra</label><input id="conv-num-ordem" placeholder="Ex: OC-44821"></div>
+      <div class="form-group"><label>Supervisor</label><input id="conv-supervisor"></div>
+    </div>
+    <div class="form-group" style="margin-top:12px"><label>Observação</label><textarea id="conv-observacao" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
+      <button class="btn btn-primary" onclick="confirmarConversao()">Criar Ordem de Compra</button>
+      <button class="btn" onclick="closeModal('modal-converter-ordem')">Cancelar</button>
     </div>
   </div>
 </div>
@@ -621,6 +776,9 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
 let currentUser = null
 let currentPerfil = null
 let ordens = [], currentPeriod = 'mes', editId = null, importBuffer = []
+
+// Utilitário global de escape HTML
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 
 // ── AUTH ──────────────────────────────────────────────────────
 function switchTab(tab){
@@ -846,15 +1004,16 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   document.getElementById('page-'+id).classList.add('active')
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'))
-  const titles={dashboard:'Dashboard',ordens:'Ordens de Compra',cadastro:'Novo Cadastro',importar:'Importar Excel',revisoes:'Próximas Revisões',relatorios:'Relatórios',usuarios:'Gerenciar Usuários'}
+  const titles={dashboard:'Dashboard',ordens:'Ordens de Compra',cadastro:'Novo Cadastro',importar:'Importar Excel',revisoes:'Próximas Revisões',relatorios:'Relatórios',manutencao:'Controle em Manutenção',usuarios:'Gerenciar Usuários'}
   document.getElementById('page-title').textContent=titles[id]||''
-  const navs=['dashboard','ordens','cadastro','importar','revisoes','relatorios']
+  const navs=['dashboard','ordens','cadastro','importar','revisoes','relatorios','manutencao']
   navs.forEach((n,i)=>{if(n===id)document.querySelectorAll('.nav-item')[i]?.classList.add('active')})
   if(id==='dashboard') carregarDashboard()
   if(id==='ordens') carregarOrdens()
   if(id==='revisoes') carregarRevisoes()
   if(id==='usuarios') carregarUsuarios()
   if(id==='relatorios') document.getElementById('rel-placa').focus()
+  if(id==='manutencao') carregarManutencao()
 }
 
 function showModal(id){document.getElementById(id).classList.add('open')}
@@ -1851,7 +2010,6 @@ function editarOrdem(id){
   if(currentPerfil!=='administrador') return
   const o=ordens.find(x=>x.id===id);if(!o)return;editId=id
   const v=o.veiculo||{},f=o.fornecedor||{}
-  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   document.getElementById('edit-form-grid').innerHTML=`
     <span class="section-label">Dados do veículo</span>
     <div class="form-group"><label>Placa</label><input id="e-placa" value="${v.placa||''}"></div>
@@ -2080,6 +2238,289 @@ async function confirmarImport(){
 }
 function cancelarImport(){importBuffer=[];document.getElementById('import-preview').style.display='none';document.getElementById('excel-input').value=''}
 function handleDrop(e){e.preventDefault();const file=e.dataTransfer.files[0];if(file)handleFile({files:[file]})}
+
+// ══════════════════════════════════════════════════════════════
+// ── CONTROLE EM MANUTENÇÃO ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+let manPage=1, manEditId=null, manChartObj=null, manGran='mes', manRankTipo='localidade'
+
+async function carregarManutencao(){
+  carregarManDashboard()
+  carregarManLista()
+  carregarManChart()
+  carregarManRanking()
+}
+
+// ── KPIs do dashboard de manutenção ──────────────────────────
+async function carregarManDashboard(){
+  try{
+    const d=await apiCall('/api/manutencao/dashboard/resumo')
+    document.getElementById('man-kpi-andamento').textContent=d.emAndamento??'0'
+    document.getElementById('man-kpi-alugados').textContent=d.alugadosAtivos??'0'
+    document.getElementById('man-kpi-atraso').textContent=d.emAtraso??'0'
+    document.getElementById('man-kpi-retornados').textContent=d.retornadosMes??'0'
+    document.getElementById('man-kpi-media').textContent=(d.mediaDias??0)+' dias'
+  }catch(e){console.error('Man dashboard err:',e)}
+}
+
+// ── Gráfico de entradas ───────────────────────────────────────
+async function carregarManChart(){
+  try{
+    const d=await apiCall(`/api/manutencao/dashboard/serie?granularidade=${manGran}`)
+    const labels=(d||[]).map(x=>{
+      if(manGran==='mes'){const[y,m]=x.periodo.split('-');return`${m}/${y}`}
+      return x.periodo
+    })
+    const totais=(d||[]).map(x=>x.total||0)
+    const corr=(d||[]).map(x=>x.corretiva||0)
+    const prev=(d||[]).map(x=>x.preventiva||0)
+    const ctx=document.getElementById('man-chart').getContext('2d')
+    if(manChartObj){manChartObj.destroy();manChartObj=null}
+    manChartObj=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels,
+        datasets:[
+          {label:'Total',data:totais,backgroundColor:'rgba(55,138,221,0.3)',borderColor:'#378ADD',borderWidth:2},
+          {label:'Corretiva',data:corr,backgroundColor:'rgba(121,31,31,0.4)',borderColor:'#791F1F',borderWidth:1},
+          {label:'Preventiva/Revisão',data:prev,backgroundColor:'rgba(39,80,10,0.4)',borderColor:'#27500A',borderWidth:1}
+        ]
+      },
+      options:{responsive:true,plugins:{legend:{display:true,position:'top'}},scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{stepSize:1}}}}
+    })
+  }catch(e){console.error('Man chart err:',e)}
+}
+
+function setManGran(g,btn){
+  manGran=g
+  document.querySelectorAll('#man-gran-bar button').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+  carregarManChart()
+}
+
+// ── Ranking ───────────────────────────────────────────────────
+async function carregarManRanking(){
+  const cont=document.getElementById('man-rank-cont')
+  try{
+    const d=await apiCall(`/api/manutencao/dashboard/rankings?tipo=${manRankTipo}&limit=10`)
+    if(!d||!d.length){cont.innerHTML='<div class="rank-empty">Sem dados</div>';return}
+    const max=d[0].qtd||1
+    cont.innerHTML=d.map((r,i)=>`
+      <div class="rank-row">
+        <span class="rank-pos">${i+1}º</span>
+        <div>
+          <div class="rank-label">${r.label}</div>
+          <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round((r.qtd/max)*100)}%"></div></div>
+        </div>
+        <span class="rank-val">${r.qtd}</span>
+      </div>`).join('')
+  }catch(e){cont.innerHTML='<div class="rank-empty">Erro ao carregar</div>'}
+}
+
+function setManRank(tipo,btn){
+  manRankTipo=tipo
+  document.querySelectorAll('#man-rank-bar button').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+  carregarManRanking()
+}
+
+// ── Lista de manutenções ──────────────────────────────────────
+async function carregarManLista(pg){
+  if(pg!==undefined) manPage=pg
+  const tb=document.getElementById('man-table')
+  tb.innerHTML=`<tr><td colspan="13" class="loading"><span class="spinner"></span>Carregando...</td></tr>`
+
+  const status=document.getElementById('man-f-status').value
+  const placa=document.getElementById('man-f-placa').value.trim()
+  const localidade=document.getElementById('man-f-localidade').value.trim()
+  const tipo=document.getElementById('man-f-tipo').value
+
+  let qs=`page=${manPage}&limit=20`
+  if(status) qs+=`&status=${encodeURIComponent(status)}`
+  if(placa)  qs+=`&placa=${encodeURIComponent(placa)}`
+  if(localidade) qs+=`&localidade=${encodeURIComponent(localidade)}`
+  if(tipo)   qs+=`&tipo_manutencao=${encodeURIComponent(tipo)}`
+
+  try{
+    const r=await apiCall(`/api/manutencao?${qs}`)
+    const rows=r.data||[]
+    if(!rows.length){
+      tb.innerHTML=`<tr><td colspan="13" class="empty">Nenhum registro encontrado.</td></tr>`
+    } else {
+      tb.innerHTML=rows.map(m=>{
+        const atraso=m.status==='Em Andamento'&&m.previsao_retorno&&m.previsao_retorno<hoje()
+        const stBadge=m.status==='Em Andamento'
+          ?`<span class="badge badge-amber">🔧 Em Andamento</span>`
+          :m.status==='Retornado'
+            ?`<span class="badge badge-green">✅ Retornado</span>`
+            :`<span class="badge badge-gray">Cancelado</span>`
+        const alugBadge=m.veiculo_alugado?`<span class="badge badge-blue">Sim${m.veiculo_devolvido?' ✓':''}</span>`:'—'
+        const diasVal=m.dias_efetivos!=null?m.dias_efetivos:'—'
+        const diasBadge=atraso?`<span style="color:#791F1F;font-weight:600">${diasVal} ⚠️</span>`:diasVal
+        const obs=m.observacoes?`<span title="${esc(m.observacoes)}" style="cursor:help">📝</span>`:'—'
+        const canConvert=m.status!=='Cancelado'&&!m.convertido_ordem
+        return `<tr>
+          <td><strong>${m.placa}</strong></td>
+          <td>${m.modelo||'—'}</td>
+          <td>${m.localidade||'—'}</td>
+          <td>${m.supervisor||'—'}</td>
+          <td>${fmtData(m.data_entrada)}</td>
+          <td>${m.previsao_retorno?`<span style="${atraso?'color:#791F1F;font-weight:600':''}">${fmtData(m.previsao_retorno)}</span>`:'—'}</td>
+          <td>${diasBadge}</td>
+          <td><span class="badge badge-gray">${m.tipo_manutencao}</span></td>
+          <td>${alugBadge}</td>
+          <td>${stBadge}</td>
+          <td>${m.num_os||'—'}</td>
+          <td>${obs}</td>
+          <td style="white-space:nowrap">
+            <button class="btn" style="padding:3px 8px;font-size:11px" onclick="editarManutencao('${m.id}')">✏️</button>
+            ${canConvert?`<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="abrirConverter('${m.id}','${esc(m.supervisor||'')}')">🔀 OC</button>`:''}
+            <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="excluirManutencao('${m.id}')">🗑️</button>
+          </td>
+        </tr>`
+      }).join('')
+    }
+
+    // Paginação
+    const total=r.total||0, limit=20
+    const pages=Math.ceil(total/limit)
+    const pag=document.getElementById('man-pag')
+    pag.innerHTML=`<span style="font-size:12px;color:#666">${total} registro(s)</span>`
+    if(pages>1){
+      if(manPage>1) pag.innerHTML+=`<button class="btn" style="padding:4px 10px;font-size:12px" onclick="carregarManLista(${manPage-1})">‹ Ant</button>`
+      pag.innerHTML+=`<span style="font-size:12px">Pág ${manPage}/${pages}</span>`
+      if(manPage<pages) pag.innerHTML+=`<button class="btn" style="padding:4px 10px;font-size:12px" onclick="carregarManLista(${manPage+1})">Próx ›</button>`
+    }
+  }catch(e){
+    tb.innerHTML=`<tr><td colspan="13" class="empty">Erro: ${e.message}</td></tr>`
+  }
+}
+
+// ── Form novo / editar ────────────────────────────────────────
+function abrirNovaManutencao(){
+  manEditId=null
+  document.getElementById('man-modal-title').textContent='Registrar Manutenção'
+  ;['man-placa','man-modelo','man-localidade','man-supervisor','man-data-entrada',
+    'man-previsao-retorno','man-data-saida','man-data-devolucao','man-num-os','man-observacoes']
+    .forEach(id=>document.getElementById(id).value='')
+  document.getElementById('man-dias-previstos').value=''
+  document.getElementById('man-tipo').value='Corretiva'
+  document.getElementById('man-status').value='Em Andamento'
+  document.getElementById('man-alugado').checked=false
+  document.getElementById('man-devolvido').checked=false
+  document.getElementById('man-devol-wrap').style.display='none'
+  document.getElementById('man-data-devol-wrap').style.display='none'
+  showModal('modal-nova-manutencao')
+}
+
+async function editarManutencao(id){
+  try{
+    const m=await apiCall(`/api/manutencao/${id}`)
+    manEditId=id
+    document.getElementById('man-modal-title').textContent='Editar Manutenção'
+    document.getElementById('man-placa').value=m.placa||''
+    document.getElementById('man-modelo').value=m.modelo||''
+    document.getElementById('man-localidade').value=m.localidade||''
+    document.getElementById('man-supervisor').value=m.supervisor||''
+    document.getElementById('man-data-entrada').value=m.data_entrada||''
+    document.getElementById('man-previsao-retorno').value=m.previsao_retorno||''
+    document.getElementById('man-data-saida').value=m.data_saida||''
+    document.getElementById('man-dias-previstos').value=m.dias_previstos||''
+    document.getElementById('man-tipo').value=m.tipo_manutencao||'Corretiva'
+    document.getElementById('man-status').value=m.status||'Em Andamento'
+    document.getElementById('man-alugado').checked=!!m.veiculo_alugado
+    document.getElementById('man-devolvido').checked=!!m.veiculo_devolvido
+    document.getElementById('man-data-devolucao').value=m.data_devolucao||''
+    document.getElementById('man-num-os').value=m.num_os||''
+    document.getElementById('man-observacoes').value=m.observacoes||''
+    toggleDevolucao()
+    showModal('modal-nova-manutencao')
+  }catch(e){alert('Erro ao carregar: '+e.message)}
+}
+
+function toggleDevolucao(){
+  const al=document.getElementById('man-alugado').checked
+  document.getElementById('man-devol-wrap').style.display=al?'block':'none'
+  document.getElementById('man-data-devol-wrap').style.display=al?'block':'none'
+}
+
+async function salvarManutencao(){
+  const payload={
+    placa:         document.getElementById('man-placa').value.toUpperCase().trim(),
+    modelo:        document.getElementById('man-modelo').value.trim(),
+    localidade:    document.getElementById('man-localidade').value.trim(),
+    supervisor:    document.getElementById('man-supervisor').value.trim(),
+    data_entrada:  document.getElementById('man-data-entrada').value,
+    previsao_retorno: document.getElementById('man-previsao-retorno').value||null,
+    data_saida:    document.getElementById('man-data-saida').value||null,
+    dias_previstos: document.getElementById('man-dias-previstos').value||null,
+    tipo_manutencao: document.getElementById('man-tipo').value,
+    status:        document.getElementById('man-status').value,
+    veiculo_alugado:   document.getElementById('man-alugado').checked,
+    veiculo_devolvido: document.getElementById('man-devolvido').checked,
+    data_devolucao: document.getElementById('man-data-devolucao').value||null,
+    num_os:        document.getElementById('man-num-os').value.trim(),
+    observacoes:   document.getElementById('man-observacoes').value.trim()
+  }
+  if(!payload.placa||!payload.data_entrada){alert('Placa e Data de Entrada são obrigatórios.');return}
+  try{
+    if(manEditId){
+      await apiCall(`/api/manutencao/${manEditId}`,'PUT',payload)
+    } else {
+      await apiCall('/api/manutencao','POST',payload)
+    }
+    closeModal('modal-nova-manutencao')
+    carregarManutencao()
+  }catch(e){alert('Erro ao salvar: '+e.message)}
+}
+
+async function excluirManutencao(id){
+  if(!confirm('Excluir este registro de manutenção?')) return
+  try{
+    await apiCall(`/api/manutencao/${id}`,'DELETE')
+    carregarManutencao()
+  }catch(e){alert('Erro: '+e.message)}
+}
+
+// ── Converter em Ordem de Compra ──────────────────────────────
+function abrirConverter(id, supervisor){
+  document.getElementById('conv-man-id').value=id
+  document.getElementById('conv-supervisor').value=supervisor||''
+  document.getElementById('conv-data-ordem').value=hoje()
+  ;['conv-fornecedor','conv-cnpj','conv-nota-fiscal','conv-item','conv-num-ordem','conv-observacao']
+    .forEach(i=>document.getElementById(i).value='')
+  document.getElementById('conv-valor-item').value='0'
+  document.getElementById('conv-quantidade').value='1'
+  document.getElementById('conv-categoria').value='Serviço'
+  showModal('modal-converter-ordem')
+}
+
+async function confirmarConversao(){
+  const id=document.getElementById('conv-man-id').value
+  const payload={
+    fornecedor:   document.getElementById('conv-fornecedor').value.trim(),
+    cnpj:         document.getElementById('conv-cnpj').value.trim(),
+    nota_fiscal:  document.getElementById('conv-nota-fiscal').value.trim(),
+    data_ordem:   document.getElementById('conv-data-ordem').value,
+    item:         document.getElementById('conv-item').value.trim(),
+    categoria:    document.getElementById('conv-categoria').value,
+    valor_item:   parseFloat(document.getElementById('conv-valor-item').value)||0,
+    quantidade:   parseInt(document.getElementById('conv-quantidade').value)||1,
+    num_ordem:    document.getElementById('conv-num-ordem').value.trim(),
+    supervisor:   document.getElementById('conv-supervisor').value.trim(),
+    observacao:   document.getElementById('conv-observacao').value.trim()
+  }
+  if(!payload.fornecedor||!payload.cnpj||!payload.nota_fiscal||!payload.item){
+    alert('Fornecedor, CNPJ, Nota Fiscal e Item são obrigatórios.')
+    return
+  }
+  try{
+    const r=await apiCall(`/api/manutencao/${id}/converter`,'POST',payload)
+    closeModal('modal-converter-ordem')
+    alert(`✅ Ordem de compra criada com sucesso!\nID: ${r.ordem?.id||''}`)
+    carregarManutencao()
+  }catch(e){alert('Erro ao converter: '+e.message)}
+}
 
 document.querySelectorAll('.modal-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')})})
 </script>
