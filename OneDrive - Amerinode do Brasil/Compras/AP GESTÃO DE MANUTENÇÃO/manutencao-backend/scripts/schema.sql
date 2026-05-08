@@ -13,18 +13,22 @@ CREATE TABLE IF NOT EXISTS veiculos (
   localidade       VARCHAR(100) NOT NULL,
   km_atual         INTEGER,
   proxima_revisao  DATE,
+  observacao       TEXT,
   created_at       TIMESTAMPTZ  DEFAULT NOW(),
   updated_at       TIMESTAMPTZ  DEFAULT NOW()
 );
+ALTER TABLE veiculos    ADD COLUMN IF NOT EXISTS observacao TEXT;
 
 -- ── Tabela: fornecedores ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fornecedores (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   razao_social VARCHAR(200) NOT NULL,
   cnpj         VARCHAR(14)  NOT NULL UNIQUE,
+  observacao   TEXT,
   created_at   TIMESTAMPTZ  DEFAULT NOW(),
   updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
+ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS observacao TEXT;
 
 -- ── Tabela: ordens ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ordens (
@@ -46,9 +50,11 @@ CREATE TABLE IF NOT EXISTS ordens (
   origem         VARCHAR(20)   DEFAULT 'Manual'
                  CHECK (origem IN ('Manual','Excel','Cotabox')),
   cotabox_id     VARCHAR(50),
+  observacao     TEXT,
   created_at     TIMESTAMPTZ   DEFAULT NOW(),
   updated_at     TIMESTAMPTZ   DEFAULT NOW()
 );
+ALTER TABLE ordens      ADD COLUMN IF NOT EXISTS observacao TEXT;
 
 -- ── Índices ──────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_ordens_veiculo    ON ordens(veiculo_id);

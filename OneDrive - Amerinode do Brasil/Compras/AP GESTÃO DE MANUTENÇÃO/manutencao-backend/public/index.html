@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;font-size:14px;color:#222;background:#F0F4F9;min-height:100vh}
@@ -70,11 +71,17 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#222;background:#F0F4F9;m
 .card{background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:20px;margin-bottom:16px}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #E0E0E0}
 .card-title{font-size:14px;font-weight:500}
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-.stat-card{background:#F5F5F5;border-radius:8px;padding:14px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media (max-width:980px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:#F5F5F5;border-radius:8px;padding:14px;position:relative}
 .stat-label{font-size:12px;color:#666;margin-bottom:4px}
 .stat-value{font-size:22px;font-weight:500}
 .stat-sub{font-size:11px;color:#999;margin-top:2px}
+.stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:500;padding:1px 6px;border-radius:10px;margin-top:4px}
+.stat-delta.up{background:#FCEBEB;color:#791F1F}     /* gastos subindo é ruim */
+.stat-delta.down{background:#EAF3DE;color:#27500A}   /* gastos caindo é bom */
+.stat-delta.up-good{background:#EAF3DE;color:#27500A}/* qtd subindo é neutro/bom */
+.stat-delta.flat{background:#F1EFE8;color:#444}
 .period-bar{display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap}
 .period-btn{padding:6px 14px;border-radius:20px;border:1px solid #DDD;background:#fff;color:#666;font-size:12px;cursor:pointer}
 .period-btn.active{background:#378ADD;color:#fff;border-color:#185FA5;font-weight:500}
@@ -133,6 +140,40 @@ tr:hover td{background:#F9F9F9}
 .access-denied{text-align:center;padding:60px 20px}
 .access-denied h2{font-size:18px;color:#666;margin-top:12px}
 .access-denied p{font-size:13px;color:#999;margin-top:6px}
+.form-group textarea{padding:8px 10px;border:1px solid #DDD;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px}
+.form-group textarea:focus{outline:none;border-color:#378ADD}
+/* ── Dashboard analytics ─────────────────────────────────────── */
+.analytics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:980px){.analytics-grid{grid-template-columns:1fr}}
+.rank-card{background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:16px}
+.rank-card h4{font-size:13px;font-weight:500;color:#1E3A5F;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.rank-card h4 .rank-icon{font-size:16px}
+.rank-list{display:flex;flex-direction:column;gap:6px}
+.rank-row{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center;font-size:12px;padding:4px 0}
+.rank-pos{font-weight:600;color:#999;font-size:11px;text-align:center}
+.rank-pos.top1{color:#B8860B}.rank-pos.top2{color:#888}.rank-pos.top3{color:#A0522D}
+.rank-label{color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-bar-wrap{position:relative;height:6px;background:#F0F4F9;border-radius:3px;margin-top:3px;grid-column:2/4}
+.rank-bar{height:100%;background:linear-gradient(90deg,#378ADD,#185FA5);border-radius:3px}
+.rank-val{font-weight:500;color:#0C447C;font-size:11px;white-space:nowrap}
+.rank-empty{color:#999;font-size:12px;text-align:center;padding:16px 0}
+.chart-card{background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:16px;margin-bottom:16px}
+.chart-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chart-toolbar h4{font-size:13px;font-weight:500;color:#1E3A5F}
+.chart-controls{display:flex;gap:6px;flex-wrap:wrap}
+.chart-controls .seg{display:flex;background:#F0F4F9;border-radius:8px;padding:3px}
+.chart-controls .seg button{border:none;background:transparent;padding:5px 10px;border-radius:6px;font-size:11px;color:#666;cursor:pointer}
+.chart-controls .seg button.active{background:#fff;color:#1E3A5F;font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.chart-wrap{position:relative;height:280px}
+.donut-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:980px){.donut-grid{grid-template-columns:1fr}}
+.donut-card{background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:16px}
+.donut-card h4{font-size:13px;font-weight:500;color:#1E3A5F;margin-bottom:10px}
+.donut-wrap{position:relative;height:200px;display:flex;align-items:center;justify-content:center}
+.donut-legend{display:grid;grid-template-columns:1fr auto auto;gap:6px 10px;font-size:11px;margin-top:8px}
+.donut-legend .lg-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle}
+.donut-legend .lg-val{color:#0C447C;font-weight:500;text-align:right;white-space:nowrap}
+.donut-legend .lg-pct{color:#888;text-align:right;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -273,12 +314,71 @@ tr:hover td{background:#F9F9F9}
         <button class="period-btn" onclick="setPeriod('trim',this)">Trimestre</button>
         <button class="period-btn" onclick="setPeriod('ano',this)">Ano atual</button>
         <button class="period-btn" onclick="setPeriod('todos',this)">Todos</button>
+        <div style="flex:1"></div>
+        <button class="btn" id="btn-export-dash-xlsx" onclick="exportarDashboardXLSX()">⬇ XLSX</button>
+        <button class="btn" id="btn-export-dash" onclick="exportarDashboardPDF()">⬇ PDF</button>
       </div>
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total de ordens</div><div class="stat-value" id="stat-total">-</div><div class="stat-sub">no período</div></div>
-        <div class="stat-card"><div class="stat-label">Valor total</div><div class="stat-value" id="stat-valor">-</div><div class="stat-sub">ordens de compra</div></div>
+        <div class="stat-card"><div class="stat-label">Total de ordens</div><div class="stat-value" id="stat-total">-</div><div class="stat-sub">no período</div><span id="delta-total"></span></div>
+        <div class="stat-card"><div class="stat-label">Valor total</div><div class="stat-value" id="stat-valor">-</div><div class="stat-sub">ordens de compra</div><span id="delta-valor"></span></div>
+        <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-value" id="stat-ticket">-</div><div class="stat-sub">valor médio por ordem</div><span id="delta-ticket"></span></div>
         <div class="stat-card"><div class="stat-label">Revisões próximas</div><div class="stat-value" id="stat-rev">-</div><div class="stat-sub">próximos 30 dias</div></div>
       </div>
+
+      <!-- Gráfico dinâmico de gastos por período -->
+      <div class="chart-card">
+        <div class="chart-toolbar">
+          <h4>📈 Gastos por período</h4>
+          <div class="chart-controls">
+            <div class="seg" id="chart-gran">
+              <button data-g="dia">Dia</button>
+              <button data-g="semana">Semana</button>
+              <button data-g="mes" class="active">Mês</button>
+              <button data-g="ano">Ano</button>
+            </div>
+            <div class="seg" id="chart-tipo">
+              <button data-t="line" class="active">Linha</button>
+              <button data-t="bar">Barras</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-gastos"></canvas></div>
+      </div>
+
+      <!-- Distribuição: status × categoria -->
+      <div class="donut-grid">
+        <div class="donut-card">
+          <h4>📊 Distribuição por status</h4>
+          <div class="donut-wrap"><canvas id="donut-status"></canvas></div>
+          <div class="donut-legend" id="legend-status"></div>
+        </div>
+        <div class="donut-card">
+          <h4>🧰 Distribuição por categoria</h4>
+          <div class="donut-wrap"><canvas id="donut-categoria"></canvas></div>
+          <div class="donut-legend" id="legend-categoria"></div>
+        </div>
+      </div>
+
+      <!-- Rankings de gastos -->
+      <div class="analytics-grid">
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">🚗</span> Top 10 — Gastos por placa</span></h4>
+          <div class="rank-list" id="rank-placa"><div class="rank-empty">Carregando...</div></div>
+        </div>
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">📍</span> Top 10 — Gastos por região</span></h4>
+          <div class="rank-list" id="rank-localidade"><div class="rank-empty">Carregando...</div></div>
+        </div>
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">🔧</span> Top 10 — Gastos por item</span></h4>
+          <div class="rank-list" id="rank-item"><div class="rank-empty">Carregando...</div></div>
+        </div>
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">🏢</span> Top 10 — Gastos por fornecedor</span></h4>
+          <div class="rank-list" id="rank-fornecedor"><div class="rank-empty">Carregando...</div></div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header"><span class="card-title">Últimas ordens</span><button class="btn" onclick="showPage('ordens')">Ver todas</button></div>
         <div class="table-wrap">
@@ -312,8 +412,8 @@ tr:hover td{background:#F9F9F9}
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nº Ordem</th><th>Link OC</th><th>Placa</th><th>Localidade</th><th>Supervisor</th><th>NF</th><th>Item</th><th>Categoria</th><th>Fornecedor</th><th>CNPJ</th><th>Vl. Item</th><th>Vl. Total</th><th>KM</th><th>Próx. Revisão</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="ordens-table"><tr><td colspan="16" class="loading"><span class="spinner"></span>Carregando...</td></tr></tbody>
+            <thead><tr><th>Nº Ordem</th><th>Link OC</th><th>Placa</th><th>Localidade</th><th>Supervisor</th><th>NF</th><th>Item</th><th>Categoria</th><th>Fornecedor</th><th>CNPJ</th><th>Vl. Item</th><th>Vl. Total</th><th>KM</th><th>Próx. Revisão</th><th>Status</th><th>Obs.</th><th>Ações</th></tr></thead>
+            <tbody id="ordens-table"><tr><td colspan="17" class="loading"><span class="spinner"></span>Carregando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -331,6 +431,7 @@ tr:hover td{background:#F9F9F9}
           <div class="form-group"><label>Supervisor *</label><input type="text" id="f-supervisor" placeholder="Nome do supervisor"></div>
           <div class="form-group"><label>KM atual</label><input type="number" id="f-km" placeholder="Ex: 45000"></div>
           <div class="form-group"><label>Próxima revisão</label><input type="date" id="f-revisao"></div>
+          <div class="form-group col-3"><label>Observação do veículo</label><textarea id="f-obs-veiculo" placeholder="Notas sobre o veículo (opcional)"></textarea></div>
           <span class="section-label">Dados da ordem</span>
           <div class="form-group"><label>Nº Ordem de Compra</label><input type="text" id="f-num-ordem" placeholder="Ex: OC-44821"></div>
           <div class="form-group col-2"><label>Link da Ordem de Compra</label><input type="url" id="f-link-ordem" placeholder="https://..."></div>
@@ -341,9 +442,11 @@ tr:hover td{background:#F9F9F9}
           <div class="form-group"><label>Valor por item (R$)</label><input type="number" id="f-valor-item" placeholder="0,00" step="0.01" oninput="calcTotal()"></div>
           <div class="form-group"><label>Quantidade</label><input type="number" id="f-qtd" value="1" oninput="calcTotal()"></div>
           <div class="form-group"><label>Valor total (R$)</label><input type="number" id="f-valor-total" step="0.01" readonly style="background:#F5F5F5"></div>
+          <div class="form-group col-3"><label>Observação da ordem</label><textarea id="f-obs-ordem" placeholder="Notas sobre esta ordem (opcional)"></textarea></div>
           <span class="section-label">Fornecedor</span>
           <div class="form-group col-2"><label>Fornecedor *</label><input type="text" id="f-fornecedor" placeholder="Razão social"></div>
           <div class="form-group"><label>CNPJ *</label><input type="text" id="f-cnpj" placeholder="00.000.000/0000-00" maxlength="18" oninput="maskCNPJ(this)"></div>
+          <div class="form-group col-3"><label>Observação do fornecedor</label><textarea id="f-obs-fornecedor" placeholder="Notas sobre o fornecedor (opcional)"></textarea></div>
           <span class="section-label">Status</span>
           <div class="form-group"><label>Status</label><select id="f-status"><option>Pendente</option><option>Em Preparação</option><option>Concluído</option><option>Cancelado</option></select></div>
         </div>
@@ -440,9 +543,9 @@ tr:hover td{background:#F9F9F9}
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Data</th><th>Nº Ordem</th><th>Placa</th><th>Localidade</th>
-            <th>Categoria</th><th>Item</th><th>Qtd</th><th>Valor</th><th>Total</th><th>Status</th><th>Fornecedor</th>
+            <th>Categoria</th><th>Item</th><th>Qtd</th><th>Valor</th><th>Total</th><th>Status</th><th>Fornecedor</th><th>Obs.</th>
           </tr></thead>
-          <tbody id="rel-table"><tr><td colspan="11" class="empty">Aplique filtros e clique em "Gerar relatório".</td></tr></tbody>
+          <tbody id="rel-table"><tr><td colspan="12" class="empty">Aplique filtros e clique em "Gerar relatório".</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -783,13 +886,13 @@ function baixarTemplate(){
   const wb = XLSX.utils.book_new()
 
   // ── Aba importacao ────────────────────────────────────────────
-  const headers = ['placa','localidade','supervisor','km_atual','proxima_revisao','num_ordem','link_ordem','nota_fiscal','data_ordem','categoria','item','valor_item','quantidade','fornecedor','cnpj','status']
-  const labels  = ['Placa *','Localidade *','Supervisor *','KM Atual','Próxima Revisão (DD/MM/AAAA)','Nº Ordem de Compra','Link Ordem de Compra','Nota Fiscal *','Data da Ordem * (DD/MM/AAAA)','Categoria * (Serviço ou Produto)','Item / Descrição *','Valor por Item (R$)','Quantidade','Fornecedor *','CNPJ *','Status (opcional)']
-  const ex1 = ['ABC-1234','São Paulo / Filial Centro','Carlos Mendes','45000','15/07/2025','OC-44821','https://app.cotabox.com.br/orders/44821','001234','10/04/2025','Serviço','Revisão 30.000 km','850,00','1','Auto Center Rápido Ltda','12.345.678/0001-90','Concluído']
-  const ex2 = ['DEF-4321','Campinas / Filial Norte','Ana Souza','55000','20/06/2025','OC-44822','https://app.cotabox.com.br/orders/44822','001235','12/04/2025','Produto','Pneus Michelin 195/65 R15','420,00','4','Pneucentro Distribuidora','98.765.432/0001-11','Em Preparação']
+  const headers = ['placa','localidade','supervisor','km_atual','proxima_revisao','observacao_veiculo','num_ordem','link_ordem','nota_fiscal','data_ordem','categoria','item','valor_item','quantidade','observacao','fornecedor','cnpj','observacao_fornecedor','status']
+  const labels  = ['Placa *','Localidade *','Supervisor *','KM Atual','Próxima Revisão (DD/MM/AAAA)','Observação do veículo','Nº Ordem de Compra','Link Ordem de Compra','Nota Fiscal *','Data da Ordem * (DD/MM/AAAA)','Categoria * (Serviço ou Produto)','Item / Descrição *','Valor por Item (R$)','Quantidade','Observação da ordem','Fornecedor *','CNPJ *','Observação do fornecedor','Status (opcional)']
+  const ex1 = ['ABC-1234','São Paulo / Filial Centro','Carlos Mendes','45000','15/07/2025','Frota administrativa','OC-44821','https://app.cotabox.com.br/orders/44821','001234','10/04/2025','Serviço','Revisão 30.000 km','850,00','1','Inclui troca de filtros','Auto Center Rápido Ltda','12.345.678/0001-90','Atende em São Paulo','Concluído']
+  const ex2 = ['DEF-4321','Campinas / Filial Norte','Ana Souza','55000','20/06/2025','','OC-44822','https://app.cotabox.com.br/orders/44822','001235','12/04/2025','Produto','Pneus Michelin 195/65 R15','420,00','4','Pneus para reposição imediata','Pneucentro Distribuidora','98.765.432/0001-11','','Em Preparação']
 
   const wsImp = XLSX.utils.aoa_to_sheet([headers, labels, ex1, ex2])
-  wsImp['!cols'] = headers.map((_,i)=>({wch: i===6?45 : i===10||i===13?30 : i===15?18 : 20}))
+  wsImp['!cols'] = headers.map(h=>({wch: h.startsWith('observacao')?32 : h==='link_ordem'?45 : h==='item'||h==='fornecedor'?30 : h==='status'?18 : 20}))
   XLSX.utils.book_append_sheet(wb, wsImp, 'importacao')
 
   // ── Aba instrucoes ────────────────────────────────────────────
@@ -808,6 +911,7 @@ function baixarTemplate(){
     ['supervisor','Sim','Nome completo do supervisor'],
     ['km_atual','Não','Apenas números. Ex: 45000'],
     ['proxima_revisao','Não','Formato DD/MM/AAAA. Ex: 15/07/2025'],
+    ['observacao_veiculo','Não','Notas livres sobre o veículo'],
     ['num_ordem','Não','Número da OC. Ex: OC-44821'],
     ['link_ordem','Não','URL completa da ordem no Cotabox'],
     ['nota_fiscal','Sim','Número da nota fiscal'],
@@ -816,8 +920,10 @@ function baixarTemplate(){
     ['item','Sim','Descrição do serviço ou produto'],
     ['valor_item','Não','Valor unitário em R$. Use vírgula: 850,00'],
     ['quantidade','Não','Número inteiro. Padrão: 1'],
+    ['observacao','Não','Notas livres sobre a ordem (ex: detalhes do serviço)'],
     ['fornecedor','Sim','Razão social do fornecedor'],
     ['cnpj','Sim','Com ou sem formatação'],
+    ['observacao_fornecedor','Não','Notas livres sobre o fornecedor'],
     ['status','Não','Pendente / Em Preparação / Concluído / Cancelado'],
   ]
   const wsInst = XLSX.utils.aoa_to_sheet(inst)
@@ -840,29 +946,533 @@ function baixarTemplate(){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────
+let chartGastosObj=null,chartGran='mes',chartTipo='line'
+let donutStatusObj=null, donutCategoriaObj=null
+const dashboardCache = { resumo:null, ultimas:[], rankings:{}, status:[], categoria:[], serie:[] }
+
 async function carregarDashboard(){
   try{
     const params=getPeriodParams(currentPeriod)
     const paramStr=params?'&'+params:''
     const[resumo,ordsData]=await Promise.all([
-      apiCall(`/api/dashboard/resumo?periodo=${currentPeriod}`),
+      apiCall(`/api/dashboard/resumo?periodo=${currentPeriod}&comparar=1`),
       apiCall(`/api/ordens?limit=8${paramStr}`)
     ])
-    document.getElementById('stat-total').textContent=resumo.total_ordens||0
-    document.getElementById('stat-valor').textContent=fmtMoeda(resumo.valor_total)
+    const totOrd=resumo.total_ordens||0
+    const valTot=Number(resumo.valor_total)||0
+    const ticketAtual=totOrd>0?valTot/totOrd:0
+    document.getElementById('stat-total').textContent=totOrd
+    document.getElementById('stat-valor').textContent=fmtMoeda(valTot)
+    document.getElementById('stat-ticket').textContent=fmtMoeda(ticketAtual)
     document.getElementById('stat-rev').textContent=resumo.revisoes_proximas||0
+    renderDeltas(resumo.comparativo)
+    dashboardCache.resumo={...resumo, ticket: ticketAtual}
     const lista=ordsData.data||[]
+    dashboardCache.ultimas=lista
     const tb=document.getElementById('dashboard-table')
-    if(!lista.length){tb.innerHTML='<tr><td colspan="7" class="empty">Nenhum registro no período selecionado.</td></tr>';return}
-    tb.innerHTML=lista.map(o=>{const v=o.veiculo||{},f=o.fornecedor||{};return`<tr><td><strong>${v.placa||'-'}</strong></td><td>${v.localidade||'-'}</td><td>${f.razao_social||'-'}</td><td>${o.item}</td><td>${catBadge(o.categoria)}</td><td>${fmtMoeda(o.valor_total)}</td><td>${statusBadge(o.status)}</td></tr>`}).join('')
+    if(!lista.length){tb.innerHTML='<tr><td colspan="7" class="empty">Nenhum registro no período selecionado.</td></tr>'}
+    else{
+      tb.innerHTML=lista.map(o=>{const v=o.veiculo||{},f=o.fornecedor||{};return`<tr><td><strong>${v.placa||'-'}</strong></td><td>${v.localidade||'-'}</td><td>${f.razao_social||'-'}</td><td>${o.item}</td><td>${catBadge(o.categoria)}</td><td>${fmtMoeda(o.valor_total)}</td><td>${statusBadge(o.status)}</td></tr>`}).join('')
+    }
+    // Carrega rankings, gráfico e donuts em paralelo (não bloqueia se falhar)
+    carregarRankings()
+    carregarGraficoGastos()
+    carregarDonuts()
   }catch(e){document.getElementById('dashboard-table').innerHTML='<tr><td colspan="7" class="empty">Erro ao carregar.</td></tr>'}
 }
 
+function renderDeltas(comp){
+  const slots=[
+    {el:'delta-total',  delta:comp?.delta_total_ordens, badGoesUp:false},
+    {el:'delta-valor',  delta:comp?.delta_valor_total,  badGoesUp:true },
+    {el:'delta-ticket', delta:comp?.delta_ticket,       badGoesUp:true }
+  ]
+  slots.forEach(({el,delta,badGoesUp})=>{
+    const span=document.getElementById(el)
+    if(!span) return
+    if(comp==null||delta==null||!isFinite(delta)){span.innerHTML='';return}
+    const v=Number(delta)
+    let cls,icon
+    if(Math.abs(v)<0.5){cls='flat';icon='='}
+    else if(v>0){cls=badGoesUp?'up':'up-good';icon='▲'}
+    else {cls=badGoesUp?'down':'down';icon='▼'}
+    span.className='stat-delta '+cls
+    span.title='vs período anterior'
+    span.innerHTML=`${icon} ${Math.abs(v).toFixed(1).replace('.',',')}% <span style="opacity:.7;font-weight:400">vs ant.</span>`
+  })
+}
+
+async function carregarDonuts(){
+  if(typeof Chart==='undefined') return
+  // Status
+  try{
+    const data=await apiCall(`/api/dashboard/rankings?tipo=status&periodo=${currentPeriod}&limit=10`)
+    dashboardCache.status=data||[]
+    const cores={'Pendente':'#F4B400','Em Preparação':'#378ADD','Concluído':'#27500A','Cancelado':'#791F1F'}
+    renderDonut('donut-status','legend-status',data,cores,(donutStatusObj_=>{donutStatusObj=donutStatusObj_}))
+  }catch(e){console.warn('Donut status:',e.message)}
+  // Categoria
+  try{
+    const data=await apiCall(`/api/dashboard/rankings?tipo=categoria&periodo=${currentPeriod}&limit=10`)
+    dashboardCache.categoria=data||[]
+    const cores={'Serviço':'#378ADD','Produto':'#F4B400'}
+    renderDonut('donut-categoria','legend-categoria',data,cores,(o=>{donutCategoriaObj=o}))
+  }catch(e){console.warn('Donut categoria:',e.message)}
+}
+
+function renderDonut(canvasId, legendId, data, paleta, setObj){
+  const canvas=document.getElementById(canvasId)
+  if(!canvas) return
+  // Destrói instância anterior (cada canvas só tem uma)
+  const existing=Chart.getChart?Chart.getChart(canvas):null
+  if(existing) existing.destroy()
+  const legendEl=document.getElementById(legendId)
+  if(legendEl) legendEl.innerHTML=''
+  if(!data||!data.length){
+    const ctx=canvas.getContext('2d')
+    ctx.clearRect(0,0,canvas.width,canvas.height)
+    ctx.fillStyle='#999';ctx.font='12px Arial';ctx.textAlign='center'
+    ctx.fillText('Sem dados no período.',canvas.width/2,canvas.height/2)
+    return
+  }
+  const fallbackPalette=['#378ADD','#F4B400','#27500A','#791F1F','#3C3489','#A0522D','#888','#1E3A5F']
+  const cores=data.map((d,i)=>paleta?.[d.label]||fallbackPalette[i%fallbackPalette.length])
+  const total=data.reduce((s,d)=>s+(d.total||0),0)
+  const c=new Chart(canvas,{
+    type:'doughnut',
+    data:{
+      labels:data.map(d=>d.label),
+      datasets:[{data:data.map(d=>d.total),backgroundColor:cores,borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>{
+          const pct=total?((c.parsed/total)*100).toFixed(1):'0.0'
+          return `${c.label}: ${fmtMoeda(c.parsed)} (${pct}%)`
+        }}}
+      }
+    }
+  })
+  setObj && setObj(c)
+  if(legendEl){
+    legendEl.innerHTML=data.map((d,i)=>{
+      const pct=total?((d.total/total)*100).toFixed(1):'0.0'
+      const lab=String(d.label||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      return `<div><span class="lg-dot" style="background:${cores[i]}"></span>${lab} <span style="color:#999;font-weight:400">· ${d.qtd}</span></div>
+              <div class="lg-val">${fmtMoeda(d.total)}</div>
+              <div class="lg-pct">${pct}%</div>`
+    }).join('')
+  }
+}
+
+async function carregarRankings(){
+  const tipos=[
+    {tipo:'placa',      el:'rank-placa',      vazio:'Sem dados de placa no período.'},
+    {tipo:'localidade', el:'rank-localidade', vazio:'Sem dados de região no período.'},
+    {tipo:'item',       el:'rank-item',       vazio:'Sem dados de item no período.'},
+    {tipo:'fornecedor', el:'rank-fornecedor', vazio:'Sem dados de fornecedor no período.'}
+  ]
+  await Promise.all(tipos.map(async ({tipo,el,vazio})=>{
+    const cont=document.getElementById(el)
+    if(!cont) return
+    cont.innerHTML='<div class="rank-empty">Carregando...</div>'
+    try{
+      const data=await apiCall(`/api/dashboard/rankings?tipo=${tipo}&periodo=${currentPeriod}&limit=10`)
+      dashboardCache.rankings[tipo]=data||[]
+      if(!data||!data.length){cont.innerHTML=`<div class="rank-empty">${vazio}</div>`;return}
+      const max=Math.max(...data.map(d=>d.total))||1
+      cont.innerHTML=data.map((d,i)=>{
+        const pct=Math.max(2,(d.total/max)*100)
+        const posClass=i===0?'top1':i===1?'top2':i===2?'top3':''
+        const lab=String(d.label).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        return `<div class="rank-row">
+          <div class="rank-pos ${posClass}">${i+1}</div>
+          <div class="rank-label" title="${lab}">${lab}</div>
+          <div class="rank-val">${fmtMoeda(d.total)} <span style="color:#999;font-weight:400">· ${d.qtd}</span></div>
+          <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
+        </div>`
+      }).join('')
+    }catch(e){
+      cont.innerHTML=`<div class="rank-empty" style="color:#a00">Erro: ${e.message}</div>`
+    }
+  }))
+}
+
+async function carregarGraficoGastos(){
+  const canvas=document.getElementById('chart-gastos')
+  if(!canvas||typeof Chart==='undefined') return
+  try{
+    const data=await apiCall(`/api/dashboard/serie?periodo=${currentPeriod}&granularidade=${chartGran}`)
+    dashboardCache.serie=data||[]
+    const labels=(data||[]).map(d=>fmtPeriodoLabel(d.periodo,chartGran))
+    const totais=(data||[]).map(d=>d.total)
+    const servicos=(data||[]).map(d=>d.servico)
+    const produtos=(data||[]).map(d=>d.produto)
+
+    if(chartGastosObj){chartGastosObj.destroy();chartGastosObj=null}
+    if(!labels.length){
+      const ctx=canvas.getContext('2d')
+      ctx.clearRect(0,0,canvas.width,canvas.height)
+      ctx.fillStyle='#999';ctx.font='13px Arial';ctx.textAlign='center'
+      ctx.fillText('Sem dados no período selecionado.',canvas.width/2,canvas.height/2)
+      return
+    }
+
+    const isLine=chartTipo==='line'
+    const corServico='#378ADD',corProduto='#F4B400',corTotal='#1E3A5F'
+    chartGastosObj=new Chart(canvas,{
+      type:chartTipo,
+      data:{
+        labels,
+        datasets: isLine
+          ? [
+              {label:'Total',     data:totais,   borderColor:corTotal,   backgroundColor:'rgba(30,58,95,.10)', tension:.3, fill:true, borderWidth:2.5, pointRadius:3},
+              {label:'Serviços',  data:servicos, borderColor:corServico, backgroundColor:'rgba(55,138,221,.05)', tension:.3, borderWidth:1.5, pointRadius:2, borderDash:[5,4]},
+              {label:'Produtos',  data:produtos, borderColor:corProduto, backgroundColor:'rgba(244,180,0,.05)',  tension:.3, borderWidth:1.5, pointRadius:2, borderDash:[5,4]}
+            ]
+          : [
+              {label:'Serviços', data:servicos, backgroundColor:corServico, stack:'s'},
+              {label:'Produtos', data:produtos, backgroundColor:corProduto, stack:'s'}
+            ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{position:'bottom',labels:{boxWidth:10,font:{size:11}}},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmtMoeda(c.parsed.y)}`}}
+        },
+        scales:{
+          x:{stacked:!isLine, grid:{display:false}, ticks:{font:{size:11}}},
+          y:{stacked:!isLine, beginAtZero:true, ticks:{font:{size:11},callback:v=>'R$ '+Number(v).toLocaleString('pt-BR')}}
+        }
+      }
+    })
+  }catch(e){console.warn('Gráfico:',e.message)}
+}
+
+function fmtPeriodoLabel(p,gran){
+  if(!p) return ''
+  if(gran==='mes'){
+    const [y,m]=p.split('-')
+    const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    return `${meses[parseInt(m)-1]||m}/${y.slice(2)}`
+  }
+  if(gran==='ano') return p
+  if(gran==='semana'||gran==='dia'){
+    const [y,m,d]=p.split('-')
+    return `${d}/${m}`
+  }
+  return p
+}
+
+function periodoLabel(p){
+  return ({mes:'Mês atual',mes_ant:'Mês anterior','3m':'Últimos 3 meses','6m':'Últimos 6 meses',trim:'Trimestre atual',ano:'Ano atual',todos:'Todos os períodos'})[p]||p
+}
+
+// ── Exportação do Dashboard como PDF ─────────────────────────
+async function exportarDashboardPDF(){
+  const btn=document.getElementById('btn-export-dash')
+  const txtOriginal=btn.textContent
+  btn.disabled=true; btn.textContent='Gerando PDF...'
+  try{
+    if(typeof window.jspdf==='undefined') throw new Error('Biblioteca jsPDF não carregada.')
+    const { jsPDF }=window.jspdf
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'})
+    const W=doc.internal.pageSize.getWidth()
+    const H=doc.internal.pageSize.getHeight()
+    const M=12 // margem
+    const stamp=new Date().toLocaleString('pt-BR')
+
+    // Dá tempo para os charts terminarem qualquer animação antes de capturar
+    await new Promise(r=>setTimeout(r,250))
+
+    // ── Header ────────────────────────────────────────────────
+    doc.setFillColor(30,58,95); doc.rect(0,0,W,18,'F')
+    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(13)
+    doc.text('Dashboard — Manutenção Veicular', M, 11)
+    doc.setFont('helvetica','normal'); doc.setFontSize(9)
+    doc.text(`Período: ${periodoLabel(currentPeriod)}   |   Gerado em ${stamp}`, M, 16)
+
+    // ── Cards de KPI ──────────────────────────────────────────
+    let y=24
+    const r=dashboardCache.resumo||{}
+    const c=r.comparativo
+    const fmtDelta=(d)=>(d==null||!isFinite(d))?'':` (${d>=0?'+':''}${d.toFixed(1).replace('.',',')}% vs ant.)`
+    const kpis=[
+      {l:'Total de ordens',  v:String(r.total_ordens||0) + fmtDelta(c?.delta_total_ordens)},
+      {l:'Valor total',      v:fmtMoeda(r.valor_total||0) + fmtDelta(c?.delta_valor_total)},
+      {l:'Ticket médio',     v:fmtMoeda(r.ticket||0)      + fmtDelta(c?.delta_ticket)},
+      {l:'Revisões próximas',v:String(r.revisoes_proximas||0)+' (30 dias)'}
+    ]
+    const cardW=(W-M*2-9)/4
+    kpis.forEach((k,i)=>{
+      const x=M+i*(cardW+3)
+      doc.setFillColor(245,248,251); doc.setDrawColor(220,228,235)
+      doc.roundedRect(x,y,cardW,18,2,2,'FD')
+      doc.setTextColor(120); doc.setFont('helvetica','normal'); doc.setFontSize(7.5)
+      doc.text(k.l,x+3,y+5)
+      doc.setTextColor(30,58,95); doc.setFont('helvetica','bold'); doc.setFontSize(11)
+      doc.text(k.v,x+3,y+13)
+    })
+    y+=24
+
+    // ── Gráfico de gastos (canvas → imagem) ───────────────────
+    const imgGastos=safeCanvasImg('chart-gastos')
+    if(imgGastos){
+      doc.setTextColor(30,58,95); doc.setFont('helvetica','bold'); doc.setFontSize(11)
+      doc.text('Gastos por período', M, y); y+=4
+      const imgW=W-M*2, imgH=72
+      doc.addImage(imgGastos,'PNG',M,y,imgW,imgH)
+      y+=imgH+5
+    }
+
+    // ── Donuts: status + categoria ────────────────────────────
+    if(y>H-90){doc.addPage(); y=M}
+    const imgStatus=safeCanvasImg('donut-status')
+    const imgCat   =safeCanvasImg('donut-categoria')
+    const halfW    =(W-M*2-6)/2
+    doc.setTextColor(30,58,95); doc.setFont('helvetica','bold'); doc.setFontSize(10)
+    if(imgStatus) doc.text('Distribuição por status',    M,             y)
+    if(imgCat)    doc.text('Distribuição por categoria', M+halfW+6,     y)
+    y+=3
+    const dH=58
+    if(imgStatus) doc.addImage(imgStatus,'PNG',M,y,halfW,dH)
+    if(imgCat)    doc.addImage(imgCat,   'PNG',M+halfW+6,y,halfW,dH)
+    // Legendas em texto
+    const drawLegenda=(arr,xBase,yBase)=>{
+      const tot=arr.reduce((s,d)=>s+(d.total||0),0)||1
+      doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(60)
+      arr.forEach((d,i)=>{
+        const pct=((d.total/tot)*100).toFixed(1)
+        const yy=yBase+i*4
+        doc.text(`• ${d.label}`, xBase, yy, { maxWidth: halfW-30 })
+        doc.text(`${fmtMoeda(d.total)}  ${pct}%`, xBase+halfW-2, yy, { align:'right' })
+      })
+    }
+    drawLegenda(dashboardCache.status,    M,           y+dH+4)
+    drawLegenda(dashboardCache.categoria, M+halfW+6,   y+dH+4)
+    const linhasMax=Math.max(dashboardCache.status.length, dashboardCache.categoria.length)
+    y+=dH+6+linhasMax*4
+
+    // ── Rankings ──────────────────────────────────────────────
+    const ranks=[
+      {tipo:'placa',      titulo:'Top 10 — Gastos por placa'},
+      {tipo:'localidade', titulo:'Top 10 — Gastos por região'},
+      {tipo:'item',       titulo:'Top 10 — Gastos por item'},
+      {tipo:'fornecedor', titulo:'Top 10 — Gastos por fornecedor'}
+    ]
+    for(const rk of ranks){
+      const data=dashboardCache.rankings[rk.tipo]||[]
+      // Garante ~50mm livres na página
+      if(y>H-60){doc.addPage(); y=M}
+      doc.setTextColor(30,58,95); doc.setFont('helvetica','bold'); doc.setFontSize(10)
+      doc.text(rk.titulo, M, y); y+=2
+      if(!data.length){
+        doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(150)
+        doc.text('Sem dados no período.', M, y+5); y+=10
+        continue
+      }
+      const totRank=data.reduce((s,d)=>s+(d.total||0),0)||1
+      doc.autoTable({
+        startY:y+2,
+        margin:{left:M,right:M},
+        head:[['#','Item','Ordens','Valor total','% do total']],
+        body:data.map((d,i)=>[
+          i+1,
+          String(d.label||'').substring(0,55),
+          d.qtd,
+          fmtMoeda(d.total),
+          ((d.total/totRank)*100).toFixed(1)+'%'
+        ]),
+        styles:{fontSize:8,cellPadding:1.6},
+        headStyles:{fillColor:[30,58,95],textColor:255,fontSize:8.5},
+        columnStyles:{0:{cellWidth:8,halign:'center'},2:{halign:'right',cellWidth:18},3:{halign:'right',cellWidth:30},4:{halign:'right',cellWidth:22}},
+        alternateRowStyles:{fillColor:[245,248,251]}
+      })
+      y=doc.lastAutoTable.finalY+6
+    }
+
+    // ── Últimas ordens ────────────────────────────────────────
+    if(dashboardCache.ultimas?.length){
+      if(y>H-50){doc.addPage(); y=M}
+      doc.setTextColor(30,58,95); doc.setFont('helvetica','bold'); doc.setFontSize(10)
+      doc.text('Últimas ordens', M, y); y+=2
+      doc.autoTable({
+        startY:y+2,
+        margin:{left:M,right:M},
+        head:[['Placa','Localidade','Fornecedor','Item','Categoria','Valor','Status']],
+        body:dashboardCache.ultimas.map(o=>{
+          const v=o.veiculo||{},f=o.fornecedor||{}
+          return [v.placa||'-', v.localidade||'-', f.razao_social||'-', String(o.item||'').substring(0,40), o.categoria||'-', fmtMoeda(o.valor_total), o.status||'-']
+        }),
+        styles:{fontSize:7.5,cellPadding:1.6},
+        headStyles:{fillColor:[30,58,95],textColor:255,fontSize:8},
+        columnStyles:{5:{halign:'right'}},
+        alternateRowStyles:{fillColor:[245,248,251]}
+      })
+    }
+
+    // ── Footer com paginação ──────────────────────────────────
+    const totalPaginas=doc.internal.getNumberOfPages()
+    for(let p=1;p<=totalPaginas;p++){
+      doc.setPage(p)
+      doc.setFontSize(8); doc.setTextColor(150); doc.setFont('helvetica','normal')
+      doc.text(`Página ${p} de ${totalPaginas}`, W-M, H-6, { align:'right' })
+      doc.text('Sistema de Gestão de Manutenção Veicular', M, H-6)
+    }
+
+    const dt=new Date().toISOString().slice(0,10)
+    doc.save(`dashboard_manutencao_${currentPeriod}_${dt}.pdf`)
+  }catch(e){
+    alert('Erro ao gerar PDF: '+e.message)
+  }finally{
+    btn.disabled=false; btn.textContent=txtOriginal
+  }
+}
+
+// ── Exportação do Dashboard como XLSX ────────────────────────
+function exportarDashboardXLSX(){
+  const btn=document.getElementById('btn-export-dash-xlsx')
+  const txt=btn.textContent
+  btn.disabled=true; btn.textContent='Gerando...'
+  try{
+    const wb=XLSX.utils.book_new()
+    const stamp=new Date().toLocaleString('pt-BR')
+    const r=dashboardCache.resumo||{}
+
+    // Aba 1 — Resumo / KPIs
+    const c=r.comparativo
+    const fmtDeltaTxt=d=>(d==null||!isFinite(d))?'':`${d>=0?'+':''}${d.toFixed(1).replace('.',',')}%`
+    const resumoRows=[
+      ['Dashboard de Manutenção Veicular'],
+      [`Período: ${periodoLabel(currentPeriod)}`],
+      [`Gerado em: ${stamp}`],
+      [],
+      ['Indicador','Atual','Anterior','Δ %'],
+      ['Total de ordens',  r.total_ordens||0,         c?.total_ordens??'',    fmtDeltaTxt(c?.delta_total_ordens)],
+      ['Valor total (R$)', Number(r.valor_total||0),  c?Number(c.valor_total):'', fmtDeltaTxt(c?.delta_valor_total)],
+      ['Ticket médio (R$)',Number(r.ticket||0),       c?Number(c.ticket):'',  fmtDeltaTxt(c?.delta_ticket)],
+      ['Revisões próximas (30 dias)', r.revisoes_proximas||0,'',''],
+      ['Revisões urgentes (10 dias)', r.revisoes_urgentes||0,'','']
+    ]
+    const wsResumo=XLSX.utils.aoa_to_sheet(resumoRows)
+    wsResumo['!cols']=[{wch:34},{wch:18},{wch:18},{wch:14}]
+    XLSX.utils.book_append_sheet(wb,wsResumo,'Resumo')
+
+    // Aba 2 — Série temporal (gastos por período)
+    const serieRows=[['Período','Total (R$)','Serviços (R$)','Produtos (R$)','Qtd ordens']]
+    ;(dashboardCache.serie||[]).forEach(d=>{
+      serieRows.push([fmtPeriodoLabel(d.periodo,chartGran), Number(d.total||0), Number(d.servico||0), Number(d.produto||0), d.qtd||0])
+    })
+    const wsSerie=XLSX.utils.aoa_to_sheet(serieRows)
+    wsSerie['!cols']=[{wch:14},{wch:16},{wch:16},{wch:16},{wch:12}]
+    XLSX.utils.book_append_sheet(wb,wsSerie,`Gastos_${chartGran}`)
+
+    // Abas 3-6 — Rankings
+    const rankings=[
+      {key:'placa',      sheet:'Top_Placas',      header:'Placa'},
+      {key:'localidade', sheet:'Top_Regioes',     header:'Região / Localidade'},
+      {key:'item',       sheet:'Top_Itens',       header:'Item'},
+      {key:'fornecedor', sheet:'Top_Fornecedores',header:'Fornecedor'}
+    ]
+    rankings.forEach(rk=>{
+      const data=dashboardCache.rankings[rk.key]||[]
+      const tot=data.reduce((s,d)=>s+Number(d.total||0),0)||1
+      const rows=[['#',rk.header,'Qtd ordens','Valor total (R$)','% do total']]
+      data.forEach((d,i)=>{
+        rows.push([i+1, d.label, d.qtd, Number(d.total||0), Number(((d.total/tot)*100).toFixed(2))])
+      })
+      const ws=XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols']=[{wch:5},{wch:42},{wch:12},{wch:18},{wch:12}]
+      XLSX.utils.book_append_sheet(wb,ws,rk.sheet)
+    })
+
+    // Aba 7 — Distribuição por status e categoria
+    const distRows=[
+      ['DISTRIBUIÇÃO POR STATUS'],
+      ['Status','Qtd ordens','Valor total (R$)','% do valor']
+    ]
+    const totS=(dashboardCache.status||[]).reduce((s,d)=>s+Number(d.total||0),0)||1
+    ;(dashboardCache.status||[]).forEach(d=>{
+      distRows.push([d.label, d.qtd, Number(d.total||0), Number(((d.total/totS)*100).toFixed(2))])
+    })
+    distRows.push([])
+    distRows.push(['DISTRIBUIÇÃO POR CATEGORIA'])
+    distRows.push(['Categoria','Qtd ordens','Valor total (R$)','% do valor'])
+    const totC=(dashboardCache.categoria||[]).reduce((s,d)=>s+Number(d.total||0),0)||1
+    ;(dashboardCache.categoria||[]).forEach(d=>{
+      distRows.push([d.label, d.qtd, Number(d.total||0), Number(((d.total/totC)*100).toFixed(2))])
+    })
+    const wsDist=XLSX.utils.aoa_to_sheet(distRows)
+    wsDist['!cols']=[{wch:22},{wch:12},{wch:18},{wch:12}]
+    XLSX.utils.book_append_sheet(wb,wsDist,'Distribuicao')
+
+    // Aba 8 — Últimas ordens
+    const ultRows=[['Data','Nº Ordem','Placa','Localidade','Fornecedor','Item','Categoria','Qtd','Vl. unitário','Vl. total','Status','Observação']]
+    ;(dashboardCache.ultimas||[]).forEach(o=>{
+      const v=o.veiculo||{},f=o.fornecedor||{}
+      ultRows.push([
+        fmtData(o.data_ordem), o.num_ordem||'', v.placa||'', v.localidade||'',
+        f.razao_social||'', o.item||'', o.categoria||'', o.quantidade||1,
+        Number(o.valor_item||0), Number(o.valor_total||0), o.status||'', o.observacao||''
+      ])
+    })
+    const wsUlt=XLSX.utils.aoa_to_sheet(ultRows)
+    wsUlt['!cols']=[{wch:11},{wch:12},{wch:10},{wch:22},{wch:28},{wch:32},{wch:12},{wch:6},{wch:14},{wch:14},{wch:14},{wch:32}]
+    XLSX.utils.book_append_sheet(wb,wsUlt,'Ultimas_ordens')
+
+    const dt=new Date().toISOString().slice(0,10)
+    XLSX.writeFile(wb,`dashboard_manutencao_${currentPeriod}_${dt}.xlsx`)
+  }catch(e){
+    alert('Erro ao gerar XLSX: '+e.message)
+  }finally{
+    btn.disabled=false; btn.textContent=txt
+  }
+}
+
+function safeCanvasImg(id){
+  const el=document.getElementById(id)
+  if(!el || !el.toDataURL) return null
+  try{
+    // Compõe o canvas original sobre fundo branco — sem isso a transparência
+    // do Chart.js pode causar estranheza visual em alguns leitores de PDF
+    const w=el.width, h=el.height
+    if(!w||!h) return null
+    const tmp=document.createElement('canvas')
+    tmp.width=w; tmp.height=h
+    const ctx=tmp.getContext('2d')
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h)
+    ctx.drawImage(el,0,0)
+    return tmp.toDataURL('image/png',1.0)
+  }catch(e){ console.warn('canvas',id,e.message); return null }
+}
+
+// Liga os botões de granularidade e tipo
+document.addEventListener('click',(ev)=>{
+  const segGran=ev.target.closest('#chart-gran button')
+  if(segGran){
+    document.querySelectorAll('#chart-gran button').forEach(b=>b.classList.remove('active'))
+    segGran.classList.add('active')
+    chartGran=segGran.dataset.g
+    carregarGraficoGastos()
+  }
+  const segTipo=ev.target.closest('#chart-tipo button')
+  if(segTipo){
+    document.querySelectorAll('#chart-tipo button').forEach(b=>b.classList.remove('active'))
+    segTipo.classList.add('active')
+    chartTipo=segTipo.dataset.t
+    carregarGraficoGastos()
+  }
+})
+
 // ── ORDENS ────────────────────────────────────────────────────
 async function carregarOrdens(){
-  document.getElementById('ordens-table').innerHTML='<tr><td colspan="16" class="loading"><span class="spinner"></span>Carregando...</td></tr>'
+  document.getElementById('ordens-table').innerHTML='<tr><td colspan="17" class="loading"><span class="spinner"></span>Carregando...</td></tr>'
   try{const data=await apiCall('/api/ordens?limit=200');ordens=data.data||[];renderOrdens()}
-  catch(e){document.getElementById('ordens-table').innerHTML=`<tr><td colspan="16" class="empty">Erro: ${e.message}</td></tr>`}
+  catch(e){document.getElementById('ordens-table').innerHTML=`<tr><td colspan="17" class="empty">Erro: ${e.message}</td></tr>`}
 }
 
 function renderOrdens(){
@@ -870,16 +1480,20 @@ function renderOrdens(){
   const busca=(document.getElementById('filtro-busca')?.value||'').toLowerCase()
   const st=document.getElementById('filtro-status')?.value||''
   const cat=document.getElementById('filtro-cat')?.value||''
-  let lista=ordens.filter(o=>{const v=o.veiculo||{},f=o.fornecedor||{};const txt=(v.placa+v.localidade+o.supervisor+f.razao_social+o.nota_fiscal+o.item+(o.num_ordem||'')).toLowerCase();return(!busca||txt.includes(busca))&&(!st||o.status===st)&&(!cat||o.categoria===cat)})
+  let lista=ordens.filter(o=>{const v=o.veiculo||{},f=o.fornecedor||{};const txt=(v.placa+v.localidade+o.supervisor+f.razao_social+o.nota_fiscal+o.item+(o.num_ordem||'')+(o.observacao||'')).toLowerCase();return(!busca||txt.includes(busca))&&(!st||o.status===st)&&(!cat||o.categoria===cat)})
   const tb=document.getElementById('ordens-table')
-  if(!lista.length){tb.innerHTML='<tr><td colspan="16" class="empty">Nenhuma ordem encontrada.</td></tr>';return}
+  if(!lista.length){tb.innerHTML='<tr><td colspan="17" class="empty">Nenhuma ordem encontrada.</td></tr>';return}
+  const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   tb.innerHTML=lista.map(o=>{
     const v=o.veiculo||{},f=o.fornecedor||{}
     const link=o.link_ordem?`<a class="oc-link" href="${o.link_ordem}" target="_blank">🔗 Abrir</a>`:'—'
+    const obs=o.observacao
+      ? `<span title="${escAttr(o.observacao)}" style="cursor:help">📝</span>`
+      : '—'
     const acoes=isAdmin
       ?`<div style="display:flex;gap:4px"><button class="btn-sm" onclick="editarOrdem('${o.id}')">Editar</button><button class="btn-sm" style="color:red" onclick="excluirOrdem('${o.id}')">Excluir</button></div>`
       :`<span style="font-size:11px;color:#999">Somente leitura</span>`
-    return`<tr><td><strong>${o.num_ordem||'—'}</strong></td><td>${link}</td><td><strong>${v.placa||'-'}</strong></td><td>${v.localidade||'-'}</td><td>${o.supervisor}</td><td>${o.nota_fiscal}</td><td>${o.item}</td><td>${catBadge(o.categoria)}</td><td>${f.razao_social||'-'}</td><td style="font-size:11px">${f.cnpj||'-'}</td><td>${fmtMoeda(o.valor_item)}</td><td><strong>${fmtMoeda(o.valor_total)}</strong></td><td>${v.km_atual?Number(v.km_atual).toLocaleString('pt-BR')+' km':'-'}</td><td>${fmtData(v.proxima_revisao)}</td><td>${statusBadge(o.status)}</td><td>${acoes}</td></tr>`
+    return`<tr><td><strong>${o.num_ordem||'—'}</strong></td><td>${link}</td><td><strong>${v.placa||'-'}</strong></td><td>${v.localidade||'-'}</td><td>${o.supervisor}</td><td>${o.nota_fiscal}</td><td>${o.item}</td><td>${catBadge(o.categoria)}</td><td>${f.razao_social||'-'}</td><td style="font-size:11px">${f.cnpj||'-'}</td><td>${fmtMoeda(o.valor_item)}</td><td><strong>${fmtMoeda(o.valor_total)}</strong></td><td>${v.km_atual?Number(v.km_atual).toLocaleString('pt-BR')+' km':'-'}</td><td>${fmtData(v.proxima_revisao)}</td><td>${statusBadge(o.status)}</td><td style="text-align:center">${obs}</td><td>${acoes}</td></tr>`
   }).join('')
 }
 
@@ -889,7 +1503,7 @@ let relatorioDados=[]
 function limparFiltrosRelatorio(){
   ['rel-placa','rel-data-inicio','rel-data-fim','rel-num-ordem','rel-item'].forEach(id=>document.getElementById(id).value='')
   relatorioDados=[]
-  document.getElementById('rel-table').innerHTML='<tr><td colspan="11" class="empty">Aplique filtros e clique em "Gerar relatório".</td></tr>'
+  document.getElementById('rel-table').innerHTML='<tr><td colspan="12" class="empty">Aplique filtros e clique em "Gerar relatório".</td></tr>'
   document.getElementById('rel-count').textContent=''
   document.getElementById('btn-exp-xlsx').disabled=true
   document.getElementById('btn-exp-pdf').disabled=true
@@ -911,7 +1525,7 @@ async function gerarRelatorio(){
   if(dFim) params.set('data_fim',dFim)
 
   const tb=document.getElementById('rel-table')
-  tb.innerHTML='<tr><td colspan="11" class="loading"><span class="spinner"></span>Gerando...</td></tr>'
+  tb.innerHTML='<tr><td colspan="12" class="loading"><span class="spinner"></span>Gerando...</td></tr>'
   document.getElementById('rel-count').textContent=''
   document.getElementById('btn-exp-xlsx').disabled=true
   document.getElementById('btn-exp-pdf').disabled=true
@@ -929,11 +1543,15 @@ async function gerarRelatorio(){
 
     relatorioDados=lista
     if(!relatorioDados.length){
-      tb.innerHTML='<tr><td colspan="11" class="empty">Nenhum resultado para os filtros aplicados.</td></tr>'
+      tb.innerHTML='<tr><td colspan="12" class="empty">Nenhum resultado para os filtros aplicados.</td></tr>'
       return
     }
+    const escAttr2 = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     tb.innerHTML=relatorioDados.map(o=>{
       const v=o.veiculo||{},f=o.fornecedor||{}
+      const obs=o.observacao
+        ? `<span title="${escAttr2(o.observacao)}" style="cursor:help">📝</span>`
+        : '—'
       return `<tr>
         <td>${fmtData(o.data_ordem)}</td>
         <td><strong>${o.num_ordem||'—'}</strong></td>
@@ -946,6 +1564,7 @@ async function gerarRelatorio(){
         <td><strong>${fmtMoeda(o.valor_total)}</strong></td>
         <td>${statusBadge(o.status)}</td>
         <td>${f.razao_social||'-'}</td>
+        <td style="text-align:center">${obs}</td>
       </tr>`
     }).join('')
     const total=relatorioDados.reduce((s,o)=>s+Number(o.valor_total||0),0)
@@ -953,7 +1572,7 @@ async function gerarRelatorio(){
     document.getElementById('btn-exp-xlsx').disabled=false
     document.getElementById('btn-exp-pdf').disabled=false
   }catch(e){
-    tb.innerHTML=`<tr><td colspan="11" class="empty" style="color:#a00">Erro ao gerar relatório: ${e.message}</td></tr>`
+    tb.innerHTML=`<tr><td colspan="12" class="empty" style="color:#a00">Erro ao gerar relatório: ${e.message}</td></tr>`
   }
 }
 
@@ -972,7 +1591,10 @@ function _relatorioRows(){
     'Fornecedor':     o.fornecedor?.razao_social||'',
     'CNPJ':           o.fornecedor?.cnpj||'',
     'Nota fiscal':    o.nota_fiscal||'',
-    'Supervisor':     o.supervisor||''
+    'Supervisor':     o.supervisor||'',
+    'Observação':     o.observacao||'',
+    'Obs. veículo':   o.veiculo?.observacao||'',
+    'Obs. fornecedor':o.fornecedor?.observacao||''
   }))
 }
 
@@ -1018,13 +1640,20 @@ function exportarRelatorioPDF(){
   const body=rows.map(r=>Object.values(r).map(v=>typeof v==='number'?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):v))
   const total=relatorioDados.reduce((s,o)=>s+Number(o.valor_total||0),0)
 
+  // Foot acompanha a quantidade de colunas em head (calculada dinamicamente)
+  const ncols=head[0].length
+  const totUnit=`R$ ${(relatorioDados.reduce((s,o)=>s+Number(o.valor_item||0)*(o.quantidade||1),0)).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+  const totGeral=`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+  const footRow=Array(ncols).fill('')
+  footRow[6]='TOTAL'; footRow[7]=totUnit; footRow[8]=totGeral
+
   doc.autoTable({
     head, body,
     startY:30,
-    styles:{fontSize:7,cellPadding:2},
+    styles:{fontSize:7,cellPadding:2,overflow:'linebreak'},
     headStyles:{fillColor:[30,58,95],textColor:255,fontSize:7.5},
     alternateRowStyles:{fillColor:[245,248,251]},
-    foot:[['','','','','','','TOTAL',`R$ ${(relatorioDados.reduce((s,o)=>s+Number(o.valor_item||0)*(o.quantidade||1),0)).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`,`R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`,'','','','','']],
+    foot:[footRow],
     footStyles:{fillColor:[230,241,251],textColor:[12,68,124],fontStyle:'bold'},
     didDrawPage:(d)=>{
       const str=`Página ${doc.internal.getNumberOfPages()}`
@@ -1203,7 +1832,7 @@ async function excluirUsuario(id){
 // ── CADASTRO ORDEM ────────────────────────────────────────────
 function calcTotal(){const vi=parseFloat(document.getElementById('f-valor-item').value)||0;const qt=parseFloat(document.getElementById('f-qtd').value)||1;document.getElementById('f-valor-total').value=(vi*qt).toFixed(2)}
 function maskCNPJ(el){let v=el.value.replace(/\D/g,'');v=v.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');el.value=v}
-function limparForm(){['f-placa','f-localidade','f-supervisor','f-km','f-revisao','f-num-ordem','f-link-ordem','f-nf','f-data','f-item','f-valor-item','f-qtd','f-valor-total','f-fornecedor','f-cnpj'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});document.getElementById('f-categoria').value='';document.getElementById('f-status').value='Pendente';document.getElementById('f-qtd').value='1'}
+function limparForm(){['f-placa','f-localidade','f-supervisor','f-km','f-revisao','f-num-ordem','f-link-ordem','f-nf','f-data','f-item','f-valor-item','f-qtd','f-valor-total','f-fornecedor','f-cnpj','f-obs-veiculo','f-obs-ordem','f-obs-fornecedor'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});document.getElementById('f-categoria').value='';document.getElementById('f-status').value='Pendente';document.getElementById('f-qtd').value='1'}
 function showAlert(msg,type='info'){const el=document.getElementById('alert-cadastro');el.innerHTML=`<div class="alert-banner alert-${type}">${msg}</div>`;el.style.display='block';if(type!=='danger')setTimeout(()=>{el.style.display='none'},3500)}
 
 async function salvarOrdem(){
@@ -1212,7 +1841,7 @@ async function salvarOrdem(){
   for(const c of campos){if(!document.getElementById(c).value.trim()){showAlert('Preencha todos os campos obrigatórios (*)','danger');return}}
   const btn=document.getElementById('btn-salvar');btn.textContent='Salvando...';btn.disabled=true
   try{
-    await apiCall('/api/ordens','POST',{placa:document.getElementById('f-placa').value.toUpperCase().trim(),localidade:document.getElementById('f-localidade').value.trim(),supervisor:document.getElementById('f-supervisor').value.trim(),km_atual:document.getElementById('f-km').value||null,proxima_revisao:document.getElementById('f-revisao').value||null,num_ordem:document.getElementById('f-num-ordem').value.trim()||null,link_ordem:document.getElementById('f-link-ordem').value.trim()||null,nota_fiscal:document.getElementById('f-nf').value.trim(),data_ordem:document.getElementById('f-data').value||new Date().toISOString().split('T')[0],categoria:document.getElementById('f-categoria').value,item:document.getElementById('f-item').value.trim(),valor_item:parseFloat(document.getElementById('f-valor-item').value)||0,quantidade:parseInt(document.getElementById('f-qtd').value)||1,fornecedor:document.getElementById('f-fornecedor').value.trim(),cnpj:document.getElementById('f-cnpj').value.trim(),status:document.getElementById('f-status').value,origem:'Manual'})
+    await apiCall('/api/ordens','POST',{placa:document.getElementById('f-placa').value.toUpperCase().trim(),localidade:document.getElementById('f-localidade').value.trim(),supervisor:document.getElementById('f-supervisor').value.trim(),km_atual:document.getElementById('f-km').value||null,proxima_revisao:document.getElementById('f-revisao').value||null,observacao_veiculo:document.getElementById('f-obs-veiculo').value.trim()||null,num_ordem:document.getElementById('f-num-ordem').value.trim()||null,link_ordem:document.getElementById('f-link-ordem').value.trim()||null,nota_fiscal:document.getElementById('f-nf').value.trim(),data_ordem:document.getElementById('f-data').value||new Date().toISOString().split('T')[0],categoria:document.getElementById('f-categoria').value,item:document.getElementById('f-item').value.trim(),valor_item:parseFloat(document.getElementById('f-valor-item').value)||0,quantidade:parseInt(document.getElementById('f-qtd').value)||1,observacao:document.getElementById('f-obs-ordem').value.trim()||null,fornecedor:document.getElementById('f-fornecedor').value.trim(),cnpj:document.getElementById('f-cnpj').value.trim(),observacao_fornecedor:document.getElementById('f-obs-fornecedor').value.trim()||null,status:document.getElementById('f-status').value,origem:'Manual'})
     showAlert('✓ Ordem salva com sucesso no banco de dados!','success');limparForm();setTimeout(()=>showPage('ordens'),1500)
   }catch(e){showAlert('Erro ao salvar: '+e.message,'danger')}
   finally{btn.textContent='Salvar ordem';btn.disabled=false}
@@ -1222,6 +1851,7 @@ function editarOrdem(id){
   if(currentPerfil!=='administrador') return
   const o=ordens.find(x=>x.id===id);if(!o)return;editId=id
   const v=o.veiculo||{},f=o.fornecedor||{}
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   document.getElementById('edit-form-grid').innerHTML=`
     <span class="section-label">Dados do veículo</span>
     <div class="form-group"><label>Placa</label><input id="e-placa" value="${v.placa||''}"></div>
@@ -1230,6 +1860,7 @@ function editarOrdem(id){
     <div class="form-group"><label>KM atual</label><input id="e-km" type="number" value="${v.km_atual||''}"></div>
     <div class="form-group"><label>Próxima revisão</label><input id="e-revisao" type="date" value="${v.proxima_revisao?v.proxima_revisao.split('T')[0]:''}"></div>
     <div class="form-group"></div>
+    <div class="form-group col-3"><label>Observação do veículo</label><textarea id="e-obs-veiculo">${esc(v.observacao)}</textarea></div>
     <span class="section-label">Dados da ordem</span>
     <div class="form-group"><label>Nº Ordem</label><input id="e-num-ordem" value="${o.num_ordem||''}"></div>
     <div class="form-group col-2"><label>Link OC</label><input id="e-link-ordem" type="url" value="${o.link_ordem||''}"></div>
@@ -1240,9 +1871,11 @@ function editarOrdem(id){
     <div class="form-group"><label>Valor item (R$)</label><input id="e-valor-item" type="number" step="0.01" value="${o.valor_item||0}"></div>
     <div class="form-group"><label>Quantidade</label><input id="e-qtd" type="number" value="${o.quantidade||1}"></div>
     <div class="form-group"><label>Valor total (R$)</label><input id="e-valor-total" type="number" step="0.01" value="${o.valor_total||0}"></div>
+    <div class="form-group col-3"><label>Observação da ordem</label><textarea id="e-obs-ordem">${esc(o.observacao)}</textarea></div>
     <span class="section-label">Fornecedor</span>
     <div class="form-group col-2"><label>Fornecedor</label><input id="e-fornecedor" value="${f.razao_social||''}"></div>
     <div class="form-group"><label>CNPJ</label><input id="e-cnpj" value="${f.cnpj||''}" oninput="maskCNPJ(this)" maxlength="18"></div>
+    <div class="form-group col-3"><label>Observação do fornecedor</label><textarea id="e-obs-fornecedor">${esc(f.observacao)}</textarea></div>
     <span class="section-label">Status</span>
     <div class="form-group"><label>Status</label><select id="e-status">
       <option ${o.status==='Pendente'?'selected':''}>Pendente</option>
@@ -1262,6 +1895,10 @@ async function salvarEdicao(){
     const local  = document.getElementById('e-localidade').value.trim()
 
     // Atualizar campos da ordem
+    const obsVeic    = document.getElementById('e-obs-veiculo')?.value ?? ''
+    const obsOrdem   = document.getElementById('e-obs-ordem')?.value ?? ''
+    const obsForn    = document.getElementById('e-obs-fornecedor')?.value ?? ''
+
     await apiCall(`/api/ordens/${editId}`,'PUT',{
       supervisor:   document.getElementById('e-supervisor').value,
       num_ordem:    document.getElementById('e-num-ordem').value||null,
@@ -1273,9 +1910,12 @@ async function salvarEdicao(){
       valor_item:   parseFloat(document.getElementById('e-valor-item').value)||0,
       quantidade:   parseInt(document.getElementById('e-qtd').value)||1,
       valor_total:  parseFloat(document.getElementById('e-valor-total').value)||0,
+      observacao:   obsOrdem.trim()||null,
       status:       document.getElementById('e-status').value,
       fornecedor:   document.getElementById('e-fornecedor').value||null,
-      cnpj:         document.getElementById('e-cnpj').value.replace(/\D/g,'')||null
+      cnpj:         document.getElementById('e-cnpj').value.replace(/\D/g,'')||null,
+      observacao_fornecedor: obsForn.trim()||null,
+      observacao_veiculo:    obsVeic.trim()||null
     })
 
     // Atualizar veículo direto no Supabase (service key via sb client)
@@ -1285,6 +1925,7 @@ async function salvarEdicao(){
       const upd = {
         placa,
         localidade: local,
+        observacao: obsVeic.trim()||null,
         updated_at: new Date().toISOString()
       }
       if(kmVal)  upd.km_atual = parseInt(kmVal)
@@ -1363,6 +2004,9 @@ function processImport(rows){
     quantidade:parseInt(r.quantidade||1)||1,
     km_atual:r.km_atual?parseInt(r.km_atual):null,
     proxima_revisao:parseData(r.proxima_revisao||r.revisao||'')||null,
+    observacao:(r.observacao||r.obs||'').toString().trim()||null,
+    observacao_veiculo:(r.observacao_veiculo||r.obs_veiculo||'').toString().trim()||null,
+    observacao_fornecedor:(r.observacao_fornecedor||r.obs_fornecedor||'').toString().trim()||null,
     status:(r.status&&['Pendente','Em Preparação','Concluído','Cancelado'].includes(r.status))?r.status:'Pendente',origem:'Excel'
   })).map(r=>({...r,valor_total:r.valor_item*r.quantidade}))
   document.getElementById('import-count').textContent=`${importBuffer.length} registros encontrados`

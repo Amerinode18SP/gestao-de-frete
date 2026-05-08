@@ -57,29 +57,32 @@ async function criar(req, res) {
   try {
     const {
       // veículo
-      placa, localidade, km_atual, proxima_revisao,
+      placa, localidade, km_atual, proxima_revisao, observacao_veiculo,
       // fornecedor
-      fornecedor, cnpj,
+      fornecedor, cnpj, observacao_fornecedor,
       // ordem
       supervisor, num_ordem, link_ordem, nota_fiscal,
       data_ordem, categoria, item, valor_item, quantidade,
+      observacao,
       status = 'Pendente', origem = 'Manual'
     } = req.body
 
     // 1. Upsert veículo
+    const veiculoPayload = { placa: placa.toUpperCase(), localidade, km_atual, proxima_revisao }
+    if (observacao_veiculo !== undefined) veiculoPayload.observacao = observacao_veiculo
     const { data: veiculoData, error: veiculoErr } = await supabase
       .from('veiculos')
-      .upsert({ placa: placa.toUpperCase(), localidade, km_atual, proxima_revisao },
-               { onConflict: 'placa' })
+      .upsert(veiculoPayload, { onConflict: 'placa' })
       .select()
       .single()
     if (veiculoErr) throw veiculoErr
 
     // 2. Upsert fornecedor
+    const fornecedorPayload = { razao_social: fornecedor, cnpj: cnpj.replace(/\D/g, '') }
+    if (observacao_fornecedor !== undefined) fornecedorPayload.observacao = observacao_fornecedor
     const { data: fornecedorData, error: fornecedorErr } = await supabase
       .from('fornecedores')
-      .upsert({ razao_social: fornecedor, cnpj: cnpj.replace(/\D/g, '') },
-               { onConflict: 'cnpj' })
+      .upsert(fornecedorPayload, { onConflict: 'cnpj' })
       .select()
       .single()
     if (fornecedorErr) throw fornecedorErr
@@ -97,6 +100,7 @@ async function criar(req, res) {
         valor_item: parseFloat(valor_item) || 0,
         quantidade: parseInt(quantidade) || 1,
         valor_total,
+        observacao: observacao || null,
         status, origem
       })
       .select()
@@ -114,16 +118,18 @@ async function atualizar(req, res) {
   try {
     // Separar campos do veículo (prefixo _), fornecedor e campos da ordem
     const body = req.body
-    const fornecedor      = body.fornecedor
-    const cnpj            = body.cnpj
-    const placa           = body._placa       || body.placa
-    const localidade      = body._localidade  || body.localidade
-    const km_atual        = body._km_atual    !== undefined ? body._km_atual    : body.km_atual
-    const proxima_revisao = body._proxima_revisao !== undefined ? body._proxima_revisao : body.proxima_revisao
+    const fornecedor             = body.fornecedor
+    const cnpj                   = body.cnpj
+    const observacao_fornecedor  = body.observacao_fornecedor
+    const placa                  = body._placa       || body.placa
+    const localidade             = body._localidade  || body.localidade
+    const km_atual               = body._km_atual    !== undefined ? body._km_atual    : body.km_atual
+    const proxima_revisao        = body._proxima_revisao !== undefined ? body._proxima_revisao : body.proxima_revisao
+    const observacao_veiculo     = body.observacao_veiculo
 
     // Campos que vão para a tabela ordens (remover tudo que não é coluna de ordens)
     const camposOrdem = {}
-    const colunasOrdem = ['supervisor','num_ordem','link_ordem','nota_fiscal','data_ordem','categoria','item','valor_item','quantidade','valor_total','status','origem']
+    const colunasOrdem = ['supervisor','num_ordem','link_ordem','nota_fiscal','data_ordem','categoria','item','valor_item','quantidade','valor_total','status','origem','observacao']
     for (const col of colunasOrdem) {
       if (body[col] !== undefined) camposOrdem[col] = body[col]
     }
@@ -141,19 +147,23 @@ async function atualizar(req, res) {
     // Atualizar veículo
     if (ordemAtual?.veiculo_id) {
       const veiculoUpdate = { updated_at: new Date().toISOString() }
-      if (placa)                        veiculoUpdate.placa = placa
-      if (localidade)                   veiculoUpdate.localidade = localidade
-      if (km_atual !== undefined)       veiculoUpdate.km_atual = km_atual
-      if (proxima_revisao !== undefined) veiculoUpdate.proxima_revisao = proxima_revisao || null
+      if (placa)                          veiculoUpdate.placa = placa
+      if (localidade)                     veiculoUpdate.localidade = localidade
+      if (km_atual !== undefined)         veiculoUpdate.km_atual = km_atual
+      if (proxima_revisao !== undefined)  veiculoUpdate.proxima_revisao = proxima_revisao || null
+      if (observacao_veiculo !== undefined) veiculoUpdate.observacao = observacao_veiculo || null
       if (Object.keys(veiculoUpdate).length > 1) {
         await supabase.from('veiculos').update(veiculoUpdate).eq('id', ordemAtual.veiculo_id)
       }
     }
 
     // Atualizar fornecedor
-    if (fornecedor && ordemAtual?.fornecedor_id) {
+    if (ordemAtual?.fornecedor_id && (fornecedor || observacao_fornecedor !== undefined)) {
+      const fornecedorUpdate = { updated_at: new Date().toISOString() }
+      if (fornecedor) fornecedorUpdate.razao_social = fornecedor
+      if (observacao_fornecedor !== undefined) fornecedorUpdate.observacao = observacao_fornecedor || null
       await supabase.from('fornecedores')
-        .update({ razao_social: fornecedor, updated_at: new Date().toISOString() })
+        .update(fornecedorUpdate)
         .eq('id', ordemAtual.fornecedor_id)
     }
 

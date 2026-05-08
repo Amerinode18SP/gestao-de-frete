@@ -80,23 +80,28 @@ async function importar(req, res) {
 
       try {
         // Upsert veículo
+        const veiculoPayload = {
+          placa:            r.placa.toString().toUpperCase().trim(),
+          localidade:       r.localidade.toString().trim(),
+          km_atual:         r.km_atual ? parseInt(r.km_atual) : null,
+          proxima_revisao:  parseData(r.proxima_revisao)
+        }
+        const obsVeic = r.observacao_veiculo || r.obs_veiculo
+        if (obsVeic) veiculoPayload.observacao = obsVeic.toString().trim()
         const { data: v, error: ve } = await supabase
           .from('veiculos')
-          .upsert({
-            placa:            r.placa.toString().toUpperCase().trim(),
-            localidade:       r.localidade.toString().trim(),
-            km_atual:         r.km_atual ? parseInt(r.km_atual) : null,
-            proxima_revisao:  parseData(r.proxima_revisao)
-          }, { onConflict: 'placa' })
+          .upsert(veiculoPayload, { onConflict: 'placa' })
           .select().single()
         if (ve) throw ve
 
         // Upsert fornecedor
         const cnpjLimpo = r.cnpj.toString().replace(/\D/g, '')
+        const fornecedorPayload = { razao_social: r.fornecedor.toString().trim(), cnpj: cnpjLimpo }
+        const obsForn = r.observacao_fornecedor || r.obs_fornecedor
+        if (obsForn) fornecedorPayload.observacao = obsForn.toString().trim()
         const { data: f, error: fe } = await supabase
           .from('fornecedores')
-          .upsert({ razao_social: r.fornecedor.toString().trim(), cnpj: cnpjLimpo },
-                   { onConflict: 'cnpj' })
+          .upsert(fornecedorPayload, { onConflict: 'cnpj' })
           .select().single()
         if (fe) throw fe
 
@@ -119,6 +124,7 @@ async function importar(req, res) {
             valor_item:    vi,
             quantidade:    qt,
             valor_total:   vi * qt,
+            observacao:    r.observacao ? r.observacao.toString().trim() : null,
             status:        'Pendente',
             origem:        'Excel'
           })
