@@ -622,9 +622,9 @@ tr:hover td{background:#F9F9F9}
             <button class="btn" onclick="exportarManutencaoXLSX()">⬇ XLSX</button>
             <button class="btn" onclick="exportarManutencaoPDF()">⬇ PDF</button>
             <button class="btn" onclick="baixarTemplateManutencao()" title="Baixar planilha modelo">📄 Template</button>
-            <button class="btn" onclick="document.getElementById('man-excel-input').click()">📥 Importar Excel</button>
+            <button class="btn man-admin-only" onclick="document.getElementById('man-excel-input').click()">📥 Importar Excel</button>
             <input type="file" id="man-excel-input" accept=".xlsx" style="display:none" onchange="importarExcelManutencao(this)">
-            <button class="btn btn-primary" onclick="abrirNovaManutencao()">+ Novo Registro</button>
+            <button class="btn btn-primary man-admin-only" onclick="abrirNovaManutencao()">+ Novo Registro</button>
           </div>
         </div>
         <!-- Filtros -->
@@ -1013,6 +1013,7 @@ async function iniciarSessao(user){
   document.getElementById('nav-importar').classList.toggle('disabled',!isAdmin)
   document.getElementById('nav-usuarios').style.display=isAdmin?'flex':'none'
   document.getElementById('btn-nova-ordem').style.display=isAdmin?'inline-block':'none'
+  document.querySelectorAll('.man-admin-only').forEach(el=>el.style.display=isAdmin?'inline-block':'none')
 
   // Mostrar app
   document.getElementById('auth-screen').style.display='none'
@@ -2436,6 +2437,12 @@ async function carregarManLista(pg){
           ?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick='verAnexosManutencao(${JSON.stringify(m.anexos||[]).replace(/'/g,"&apos;")},"${esc(m.placa)}")'>📎 ${nAnex}</button>`
           :'—'
         const canConvert=m.status!=='Cancelado'&&!m.convertido_ordem
+        const isAdmin=currentPerfil==='administrador'
+        const acoes=isAdmin
+          ? `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="editarManutencao('${m.id}')">✏️</button>
+             ${canConvert?`<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="abrirConverter('${m.id}','${esc(m.supervisor||'')}')">🔀 OC</button>`:''}
+             <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="excluirManutencao('${m.id}')">🗑️</button>`
+          : '<span style="color:#bbb;font-size:11px">—</span>'
         return `<tr>
           <td><strong style="cursor:pointer;color:#0C447C;text-decoration:underline" onclick="verHistorico('${m.placa}')" title="Ver histórico desta placa">${m.placa}</strong></td>
           <td>${m.modelo||'—'}</td>
@@ -2451,11 +2458,7 @@ async function carregarManLista(pg){
           <td>${m.oficina||'—'}</td>
           <td>${anexCol}</td>
           <td>${obs}</td>
-          <td style="white-space:nowrap">
-            <button class="btn" style="padding:3px 8px;font-size:11px" onclick="editarManutencao('${m.id}')">✏️</button>
-            ${canConvert?`<button class="btn btn-primary" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="abrirConverter('${m.id}','${esc(m.supervisor||'')}')">🔀 OC</button>`:''}
-            <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;margin-left:4px" onclick="excluirManutencao('${m.id}')">🗑️</button>
-          </td>
+          <td style="white-space:nowrap">${acoes}</td>
         </tr>`
       }).join('')
     }
