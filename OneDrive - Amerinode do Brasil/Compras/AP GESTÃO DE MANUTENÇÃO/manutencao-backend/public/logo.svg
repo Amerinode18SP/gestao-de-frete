@@ -1,24 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
-  <!-- Rings / Arcs - Blue top, Red bottom -->
-  <g transform="translate(100,48)">
-    <!-- Ring 1 - top blue -->
-    <ellipse cx="0" cy="-22" rx="52" ry="10" fill="none" stroke="#1a6bbd" stroke-width="5" stroke-linecap="round"
-      stroke-dasharray="290 40" stroke-dashoffset="0"/>
-    <!-- Ring 2 -->
-    <ellipse cx="0" cy="-11" rx="54" ry="10" fill="none" stroke="#2278cc" stroke-width="5" stroke-linecap="round"
-      stroke-dasharray="300 40" stroke-dashoffset="0"/>
-    <!-- Ring 3 -->
-    <ellipse cx="0" cy="0" rx="56" ry="10" fill="none" stroke="#2985d5" stroke-width="5" stroke-linecap="round"
-      stroke-dasharray="310 40" stroke-dashoffset="0"/>
-    <!-- Ring 4 - transition -->
-    <ellipse cx="0" cy="11" rx="54" ry="10" fill="none" stroke="#c0392b" stroke-width="5" stroke-linecap="round"
-      stroke-dasharray="300 40" stroke-dashoffset="0"/>
-    <!-- Ring 5 - red bottom -->
-    <ellipse cx="0" cy="22" rx="52" ry="10" fill="none" stroke="#a93226" stroke-width="5" stroke-linecap="round"
-      stroke-dasharray="290 40" stroke-dashoffset="0"/>
-  </g>
-  <!-- Text: amerinode -->
-  <text x="100" y="100" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="400" letter-spacing="1">
-    <tspan fill="#1a6bbd">ameri</tspan><tspan fill="#c0392b">node</tspan><tspan fill="#c0392b" font-size="11" dy="-8">™</tspan>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 115" width="200" height="115">
+  <defs>
+    <!-- Half-sphere clip masks for the woven interlace effect -->
+    <clipPath id="L"><rect x="0"   y="0" width="100" height="115"/></clipPath>
+    <clipPath id="R"><rect x="100" y="0" width="100" height="115"/></clipPath>
+  </defs>
+
+  <!--
+    8 horizontal elliptical rings arranged to form a 3D sphere.
+    Sphere centre ≈ (100, 43).  rx grows toward the equator (rings 4/5)
+    then shrinks toward the poles (rings 1/8) — giving the spherical silhouette.
+
+    Woven / interlaced effect:
+      Odd  rings (1,3,5,7) → front arc = LEFT  half, back arc = RIGHT half
+      Even rings (2,4,6,8) → front arc = RIGHT half, back arc = LEFT  half
+
+    Rendering order: all back arcs first (dim), then all front arcs on top (full).
+
+    Colours: rings 1-4 blue (#1a6bbd family), rings 5-8 red (#c0392b family)
+  -->
+
+  <!-- ═══════════ BACK ARCS (dim — appear "behind" the sphere's central axis) ═══════════ -->
+
+  <!-- Ring 1  y=8   rx=23  blue  odd  → back=RIGHT -->
+  <ellipse cx="100" cy="8"  rx="23" ry="6"   fill="none" stroke="#1a6bbd" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)" opacity="0.38"/>
+  <!-- Ring 2  y=18  rx=34  blue  even → back=LEFT  -->
+  <ellipse cx="100" cy="18" rx="34" ry="7"   fill="none" stroke="#1e75c6" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)" opacity="0.38"/>
+  <!-- Ring 3  y=28  rx=40  blue  odd  → back=RIGHT -->
+  <ellipse cx="100" cy="28" rx="40" ry="7.5" fill="none" stroke="#2280cf" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)" opacity="0.38"/>
+  <!-- Ring 4  y=38  rx=43  blue  even → back=LEFT  -->
+  <ellipse cx="100" cy="38" rx="43" ry="8"   fill="none" stroke="#268ad8" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)" opacity="0.38"/>
+  <!-- Ring 5  y=48  rx=43  red   odd  → back=RIGHT -->
+  <ellipse cx="100" cy="48" rx="43" ry="8"   fill="none" stroke="#d44535" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)" opacity="0.38"/>
+  <!-- Ring 6  y=58  rx=40  red   even → back=LEFT  -->
+  <ellipse cx="100" cy="58" rx="40" ry="7.5" fill="none" stroke="#ca3e2f" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)" opacity="0.38"/>
+  <!-- Ring 7  y=68  rx=34  red   odd  → back=RIGHT -->
+  <ellipse cx="100" cy="68" rx="34" ry="7"   fill="none" stroke="#c0392b" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)" opacity="0.38"/>
+  <!-- Ring 8  y=78  rx=23  red   even → back=LEFT  -->
+  <ellipse cx="100" cy="78" rx="23" ry="6"   fill="none" stroke="#a93226" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)" opacity="0.38"/>
+
+  <!-- ═══════════ FRONT ARCS (full opacity — appear "in front" of the axis) ═══════════ -->
+
+  <!-- Ring 1  blue  odd  → front=LEFT  -->
+  <ellipse cx="100" cy="8"  rx="23" ry="6"   fill="none" stroke="#1a6bbd" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)"/>
+  <!-- Ring 2  blue  even → front=RIGHT -->
+  <ellipse cx="100" cy="18" rx="34" ry="7"   fill="none" stroke="#1e75c6" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)"/>
+  <!-- Ring 3  blue  odd  → front=LEFT  -->
+  <ellipse cx="100" cy="28" rx="40" ry="7.5" fill="none" stroke="#2280cf" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)"/>
+  <!-- Ring 4  blue  even → front=RIGHT -->
+  <ellipse cx="100" cy="38" rx="43" ry="8"   fill="none" stroke="#268ad8" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)"/>
+  <!-- Ring 5  red   odd  → front=LEFT  -->
+  <ellipse cx="100" cy="48" rx="43" ry="8"   fill="none" stroke="#d44535" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)"/>
+  <!-- Ring 6  red   even → front=RIGHT -->
+  <ellipse cx="100" cy="58" rx="40" ry="7.5" fill="none" stroke="#ca3e2f" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)"/>
+  <!-- Ring 7  red   odd  → front=LEFT  -->
+  <ellipse cx="100" cy="68" rx="34" ry="7"   fill="none" stroke="#c0392b" stroke-width="4.5" stroke-linecap="round" clip-path="url(#L)"/>
+  <!-- Ring 8  red   even → front=RIGHT -->
+  <ellipse cx="100" cy="78" rx="23" ry="6"   fill="none" stroke="#a93226" stroke-width="4.5" stroke-linecap="round" clip-path="url(#R)"/>
+
+  <!-- ═══════════ Logotype text ═══════════ -->
+  <text x="100" y="103" text-anchor="middle"
+        font-family="Arial, sans-serif" font-size="21"
+        font-weight="400" letter-spacing="1.5">
+    <tspan fill="#1a6bbd">ameri</tspan><tspan fill="#c0392b">node</tspan><tspan
+      fill="#c0392b" font-size="11" dy="-7">™</tspan>
   </text>
 </svg>
