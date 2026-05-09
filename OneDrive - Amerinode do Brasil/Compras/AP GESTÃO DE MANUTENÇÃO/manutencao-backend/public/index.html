@@ -657,9 +657,9 @@ tr:hover td{background:#F9F9F9}
             <thead><tr>
               <th>Placa</th><th>Modelo</th><th>Localidade</th><th>Supervisor</th>
               <th>Entrada</th><th>Previsão Retorno</th><th>Dias</th><th>Tipo</th>
-              <th>Alugado</th><th>Status</th><th>Nº OS</th><th>Obs.</th><th>Ações</th>
+              <th>Alugado</th><th>Status</th><th>Nº OS</th><th>Oficina</th><th>Anexos</th><th>Obs.</th><th>Ações</th>
             </tr></thead>
-            <tbody id="man-table"><tr><td colspan="13" class="loading"><span class="spinner"></span>Carregando...</td></tr></tbody>
+            <tbody id="man-table"><tr><td colspan="15" class="loading"><span class="spinner"></span>Carregando...</td></tr></tbody>
           </table>
         </div>
         <div id="man-pag" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px"></div>
@@ -675,7 +675,7 @@ tr:hover td{background:#F9F9F9}
           <table>
             <thead><tr>
               <th>Entrada</th><th>Saída</th><th>Dias</th><th>Tipo</th><th>Status</th>
-              <th>Alugado</th><th>Supervisor</th><th>Nº OS</th><th>Obs.</th><th>OC?</th>
+              <th>Alugado</th><th>Supervisor</th><th>Nº OS</th><th>Oficina</th><th>Anexos</th><th>Obs.</th><th>OC?</th>
             </tr></thead>
             <tbody id="man-hist-table"></tbody>
           </table>
@@ -783,6 +783,17 @@ tr:hover td{background:#F9F9F9}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
       <button class="btn btn-primary" onclick="confirmarConversao()">Criar Ordem de Compra</button>
       <button class="btn" onclick="closeModal('modal-converter-ordem')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VISUALIZAR ANEXOS -->
+<div class="modal-overlay" id="modal-ver-anexos">
+  <div class="modal" style="max-width:560px">
+    <h3 id="ver-anexos-titulo">Anexos</h3>
+    <div id="ver-anexos-lista" style="display:flex;flex-direction:column;gap:8px;font-size:13px"></div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
+      <button class="btn btn-primary" onclick="closeModal('modal-ver-anexos')">Fechar</button>
     </div>
   </div>
 </div>
@@ -2403,7 +2414,7 @@ async function carregarManLista(pg){
     const r=await apiCall(`/api/manutencao?${qs}`)
     const rows=r.data||[]
     if(!rows.length){
-      tb.innerHTML=`<tr><td colspan="13" class="empty">Nenhum registro encontrado.</td></tr>`
+      tb.innerHTML=`<tr><td colspan="15" class="empty">Nenhum registro encontrado.</td></tr>`
     } else {
       tb.innerHTML=rows.map(m=>{
         const atraso=m.status==='Em Andamento'&&m.previsao_retorno&&m.previsao_retorno<hoje()
@@ -2411,11 +2422,19 @@ async function carregarManLista(pg){
           ?`<span class="badge badge-amber">🔧 Em Andamento</span>`
           :m.status==='Retornado'
             ?`<span class="badge badge-green">✅ Retornado</span>`
-            :`<span class="badge badge-gray">Cancelado</span>`
+            :m.status==='Orçamento'
+              ?`<span class="badge badge-blue">💰 Orçamento</span>`
+              :m.status==='Aprovado'
+                ?`<span class="badge badge-green">✔ Aprovado</span>`
+                :`<span class="badge badge-gray">Cancelado</span>`
         const alugBadge=m.veiculo_alugado?`<span class="badge badge-blue">Sim${m.veiculo_devolvido?' ✓':''}</span>`:'—'
         const diasVal=m.dias_efetivos!=null?m.dias_efetivos:'—'
         const diasBadge=atraso?`<span style="color:#791F1F;font-weight:600">${diasVal} ⚠️</span>`:diasVal
         const obs=m.observacoes?`<span title="${esc(m.observacoes)}" style="cursor:help">📝</span>`:'—'
+        const nAnex=Array.isArray(m.anexos)?m.anexos.filter(a=>a&&a.url).length:0
+        const anexCol=nAnex>0
+          ?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick='verAnexosManutencao(${JSON.stringify(m.anexos||[]).replace(/'/g,"&apos;")},"${esc(m.placa)}")'>📎 ${nAnex}</button>`
+          :'—'
         const canConvert=m.status!=='Cancelado'&&!m.convertido_ordem
         return `<tr>
           <td><strong style="cursor:pointer;color:#0C447C;text-decoration:underline" onclick="verHistorico('${m.placa}')" title="Ver histórico desta placa">${m.placa}</strong></td>
@@ -2429,6 +2448,8 @@ async function carregarManLista(pg){
           <td>${alugBadge}</td>
           <td>${stBadge}</td>
           <td>${m.num_os||'—'}</td>
+          <td>${m.oficina||'—'}</td>
+          <td>${anexCol}</td>
           <td>${obs}</td>
           <td style="white-space:nowrap">
             <button class="btn" style="padding:3px 8px;font-size:11px" onclick="editarManutencao('${m.id}')">✏️</button>
@@ -2486,6 +2507,31 @@ function formatBytes(n){
   if(n<1024) return n+' B'
   if(n<1024*1024) return (n/1024).toFixed(1)+' KB'
   return (n/1024/1024).toFixed(1)+' MB'
+}
+
+function verAnexosManutencao(anexos, placa){
+  const lista=Array.isArray(anexos)?anexos.filter(a=>a&&a.url):[]
+  document.getElementById('ver-anexos-titulo').textContent=`Anexos — ${placa||''}`
+  const wrap=document.getElementById('ver-anexos-lista')
+  if(lista.length===0){
+    wrap.innerHTML='<p style="color:#888">Nenhum anexo disponível.</p>'
+  } else {
+    wrap.innerHTML=lista.map(a=>{
+      const ic=a.mime&&a.mime.startsWith('image/')?'🖼️':(a.mime==='application/pdf'?'📄':'📎')
+      const nome=esc(a.nome||a.arquivo_nome||'arquivo')
+      const tam=a.tamanho?` <span style="color:#888">(${formatBytes(a.tamanho)})</span>`:''
+      return `<div style="display:flex;align-items:center;gap:10px;border:1px solid #EEE;border-radius:6px;padding:10px;background:#FAFAFA">
+        <div style="font-size:22px">${ic}</div>
+        <div style="flex:1">
+          <div style="font-weight:600">${nome}${tam}</div>
+          <div style="font-size:11px;color:#888">${esc(a.arquivo_nome||'')}</div>
+        </div>
+        <a class="btn" href="${a.url}" target="_blank" rel="noopener" style="padding:5px 10px;font-size:12px">↗ Abrir</a>
+        <a class="btn btn-primary" href="${a.url}" download="${esc(a.arquivo_nome||a.nome||'anexo')}" style="padding:5px 10px;font-size:12px">⬇ Baixar</a>
+      </div>`
+    }).join('')
+  }
+  showModal('modal-ver-anexos')
 }
 
 function novoAnexoVazio(){
@@ -2709,15 +2755,21 @@ async function verHistorico(placa){
   document.getElementById('man-hist-placa').textContent=placa
   card.style.display='block'
   card.scrollIntoView({behavior:'smooth',block:'start'})
-  tb.innerHTML=`<tr><td colspan="10" class="loading"><span class="spinner"></span>Carregando...</td></tr>`
+  tb.innerHTML=`<tr><td colspan="12" class="loading"><span class="spinner"></span>Carregando...</td></tr>`
   try{
     const r=await apiCall(`/api/manutencao?placa=${encodeURIComponent(placa)}&limit=100`)
     const rows=r.data||[]
-    if(!rows.length){tb.innerHTML=`<tr><td colspan="10" class="empty">Nenhum registro encontrado.</td></tr>`;return}
+    if(!rows.length){tb.innerHTML=`<tr><td colspan="12" class="empty">Nenhum registro encontrado.</td></tr>`;return}
     tb.innerHTML=rows.map(m=>{
       const stBadge=m.status==='Em Andamento'?`<span class="badge badge-amber">🔧 Em Andamento</span>`
         :m.status==='Retornado'?`<span class="badge badge-green">✅ Retornado</span>`
+        :m.status==='Orçamento'?`<span class="badge badge-blue">💰 Orçamento</span>`
+        :m.status==='Aprovado'?`<span class="badge badge-green">✔ Aprovado</span>`
         :`<span class="badge badge-gray">Cancelado</span>`
+      const nAnex=Array.isArray(m.anexos)?m.anexos.filter(a=>a&&a.url).length:0
+      const anexCol=nAnex>0
+        ?`<button class="btn" style="padding:2px 8px;font-size:11px" onclick='verAnexosManutencao(${JSON.stringify(m.anexos||[]).replace(/'/g,"&apos;")},"${esc(m.placa||placa)}")'>📎 ${nAnex}</button>`
+        :'—'
       return `<tr>
         <td>${fmtData(m.data_entrada)}</td>
         <td>${m.data_saida?fmtData(m.data_saida):'—'}</td>
@@ -2727,11 +2779,13 @@ async function verHistorico(placa){
         <td>${m.veiculo_alugado?'Sim':'Não'}</td>
         <td>${m.supervisor||'—'}</td>
         <td>${m.num_os||'—'}</td>
+        <td>${m.oficina||'—'}</td>
+        <td>${anexCol}</td>
         <td>${m.observacoes?`<span title="${esc(m.observacoes)}" style="cursor:help">📝</span>`:'—'}</td>
         <td>${m.convertido_ordem?`<span class="badge badge-green">Sim</span>`:'—'}</td>
       </tr>`
     }).join('')
-  }catch(e){tb.innerHTML=`<tr><td colspan="10" class="empty">Erro: ${e.message}</td></tr>`}
+  }catch(e){tb.innerHTML=`<tr><td colspan="12" class="empty">Erro: ${e.message}</td></tr>`}
 }
 
 function fecharHistorico(){
