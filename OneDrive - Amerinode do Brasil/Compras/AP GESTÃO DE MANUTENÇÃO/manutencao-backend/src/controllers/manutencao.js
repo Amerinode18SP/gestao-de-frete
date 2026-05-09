@@ -3,13 +3,26 @@ const XLSX     = require('xlsx')
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function parseData(valor) {
-  if (!valor) return null
+  if (!valor && valor !== 0) return null
+  // Date object (cellDates: true)
+  if (valor instanceof Date) {
+    if (isNaN(valor.getTime())) return null
+    return valor.toISOString().split('T')[0]
+  }
   const s = String(valor).trim()
   if (!s) return null
+  // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  // ISO com hora
   if (/^\d{4}-\d{2}-\d{2}[T ]/.test(s)) return s.substring(0, 10)
+  // DD/MM/YYYY
   const p = s.split('/')
   if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`
+  // Serial numérico do Excel (ex: 46775)
+  if (/^\d{4,5}$/.test(s)) {
+    const d = new Date(Math.round((parseInt(s) - 25569) * 86400 * 1000))
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
+  }
   return null
 }
 
@@ -422,7 +435,7 @@ async function importarManutencao(req, res) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' })
 
-    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false })
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true })
     const ws   = wb.Sheets[wb.SheetNames[0]]
 
     // Detectar linha de cabeçalho: pular linhas de título mescladas
