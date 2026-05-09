@@ -67,44 +67,56 @@ async function criar(req, res) {
       status = 'Pendente', origem = 'Manual'
     } = req.body
 
+    // Helper: tenta operação; se erro indicar coluna faltante, refaz sem ela
+    async function tentarSemColunaFaltante(payload, fn) {
+      let r = await fn(payload)
+      let p = payload
+      while (r.error && /Could not find the '([^']+)' column/.test(r.error.message)) {
+        const col = r.error.message.match(/Could not find the '([^']+)' column/)[1]
+        if (!(col in p)) break
+        p = { ...p }
+        delete p[col]
+        r = await fn(p)
+      }
+      return r
+    }
+
     // 1. Upsert veículo
     const veiculoPayload = { placa: placa.toUpperCase(), localidade, km_atual, proxima_revisao }
     if (observacao_veiculo !== undefined) veiculoPayload.observacao = observacao_veiculo
-    const { data: veiculoData, error: veiculoErr } = await supabase
-      .from('veiculos')
-      .upsert(veiculoPayload, { onConflict: 'placa' })
-      .select()
-      .single()
+    const { data: veiculoData, error: veiculoErr } = await tentarSemColunaFaltante(
+      veiculoPayload,
+      p => supabase.from('veiculos').upsert(p, { onConflict: 'placa' }).select().single()
+    )
     if (veiculoErr) throw veiculoErr
 
     // 2. Upsert fornecedor
     const fornecedorPayload = { razao_social: fornecedor, cnpj: cnpj.replace(/\D/g, '') }
     if (observacao_fornecedor !== undefined) fornecedorPayload.observacao = observacao_fornecedor
-    const { data: fornecedorData, error: fornecedorErr } = await supabase
-      .from('fornecedores')
-      .upsert(fornecedorPayload, { onConflict: 'cnpj' })
-      .select()
-      .single()
+    const { data: fornecedorData, error: fornecedorErr } = await tentarSemColunaFaltante(
+      fornecedorPayload,
+      p => supabase.from('fornecedores').upsert(p, { onConflict: 'cnpj' }).select().single()
+    )
     if (fornecedorErr) throw fornecedorErr
 
     // 3. Inserir ordem
     const valor_total = (parseFloat(valor_item) || 0) * (parseInt(quantidade) || 1)
 
-    const { data: ordemData, error: ordemErr } = await supabase
-      .from('ordens')
-      .insert({
-        veiculo_id:    veiculoData.id,
-        fornecedor_id: fornecedorData.id,
-        supervisor, num_ordem, link_ordem, nota_fiscal,
-        data_ordem, categoria, item,
-        valor_item: parseFloat(valor_item) || 0,
-        quantidade: parseInt(quantidade) || 1,
-        valor_total,
-        observacao: observacao || null,
-        status, origem
-      })
-      .select()
-      .single()
+    const ordemPayload = {
+      veiculo_id:    veiculoData.id,
+      fornecedor_id: fornecedorData.id,
+      supervisor, num_ordem, link_ordem, nota_fiscal,
+      data_ordem, categoria, item,
+      valor_item: parseFloat(valor_item) || 0,
+      quantidade: parseInt(quantidade) || 1,
+      valor_total,
+      observacao: observacao || null,
+      status, origem
+    }
+    const { data: ordemData, error: ordemErr } = await tentarSemColunaFaltante(
+      ordemPayload,
+      p => supabase.from('ordens').insert(p).select().single()
+    )
     if (ordemErr) throw ordemErr
 
     res.status(201).json(ordemData)
