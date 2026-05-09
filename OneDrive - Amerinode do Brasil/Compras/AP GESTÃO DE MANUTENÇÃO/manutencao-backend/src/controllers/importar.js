@@ -79,6 +79,18 @@ async function importar(req, res) {
       }
 
       try {
+        // Helper: tenta operação; se erro indicar coluna faltante, refaz sem ela
+        async function tentarSemColunaFaltante(payload, fn) {
+          let r = await fn(payload)
+          if (r.error && /Could not find the '([^']+)' column/.test(r.error.message)) {
+            const col = r.error.message.match(/Could not find the '([^']+)' column/)[1]
+            const novo = { ...payload }
+            delete novo[col]
+            r = await fn(novo)
+          }
+          return r
+        }
+
         // Upsert veículo
         const veiculoPayload = {
           placa:            r.placa.toString().toUpperCase().trim(),
@@ -88,10 +100,9 @@ async function importar(req, res) {
         }
         const obsVeic = r.observacao_veiculo || r.obs_veiculo
         if (obsVeic) veiculoPayload.observacao = obsVeic.toString().trim()
-        const { data: v, error: ve } = await supabase
-          .from('veiculos')
-          .upsert(veiculoPayload, { onConflict: 'placa' })
-          .select().single()
+        const { data: v, error: ve } = await tentarSemColunaFaltante(veiculoPayload, p =>
+          supabase.from('veiculos').upsert(p, { onConflict: 'placa' }).select().single()
+        )
         if (ve) throw ve
 
         // Upsert fornecedor
@@ -99,36 +110,35 @@ async function importar(req, res) {
         const fornecedorPayload = { razao_social: r.fornecedor.toString().trim(), cnpj: cnpjLimpo }
         const obsForn = r.observacao_fornecedor || r.obs_fornecedor
         if (obsForn) fornecedorPayload.observacao = obsForn.toString().trim()
-        const { data: f, error: fe } = await supabase
-          .from('fornecedores')
-          .upsert(fornecedorPayload, { onConflict: 'cnpj' })
-          .select().single()
+        const { data: f, error: fe } = await tentarSemColunaFaltante(fornecedorPayload, p =>
+          supabase.from('fornecedores').upsert(p, { onConflict: 'cnpj' }).select().single()
+        )
         if (fe) throw fe
 
         // Inserir ordem
         const vi = parseMoeda(r.valor_item)
         const qt = parseInt(r.quantidade) || 1
 
-        const { data: o, error: oe } = await supabase
-          .from('ordens')
-          .insert({
-            veiculo_id:    v.id,
-            fornecedor_id: f.id,
-            supervisor:    r.supervisor.toString().trim(),
-            num_ordem:     r.num_ordem  ? r.num_ordem.toString().trim()  : null,
-            link_ordem:    r.link_ordem ? r.link_ordem.toString().trim() : null,
-            nota_fiscal:   r.nota_fiscal.toString().trim(),
-            data_ordem:    parseData(r.data_ordem) || new Date().toISOString().split('T')[0],
-            categoria:     r.categoria === 'Servico' ? 'Serviço' : r.categoria,
-            item:          r.item.toString().trim(),
-            valor_item:    vi,
-            quantidade:    qt,
-            valor_total:   vi * qt,
-            observacao:    r.observacao ? r.observacao.toString().trim() : null,
-            status:        'Pendente',
-            origem:        'Excel'
-          })
-          .select().single()
+        const ordemPayload = {
+          veiculo_id:    v.id,
+          fornecedor_id: f.id,
+          supervisor:    r.supervisor.toString().trim(),
+          num_ordem:     r.num_ordem  ? r.num_ordem.toString().trim()  : null,
+          link_ordem:    r.link_ordem ? r.link_ordem.toString().trim() : null,
+          nota_fiscal:   r.nota_fiscal.toString().trim(),
+          data_ordem:    parseData(r.data_ordem) || new Date().toISOString().split('T')[0],
+          categoria:     r.categoria === 'Servico' ? 'Serviço' : r.categoria,
+          item:          r.item.toString().trim(),
+          valor_item:    vi,
+          quantidade:    qt,
+          valor_total:   vi * qt,
+          observacao:    r.observacao ? r.observacao.toString().trim() : null,
+          status:        'Pendente',
+          origem:        'Excel'
+        }
+        const { data: o, error: oe } = await tentarSemColunaFaltante(ordemPayload, p =>
+          supabase.from('ordens').insert(p).select().single()
+        )
         if (oe) throw oe
 
         inseridos.push(o)
