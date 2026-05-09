@@ -210,6 +210,20 @@ async function converterEmOrdem(req, res) {
     if (!fornecedor || !cnpj || !nota_fiscal || !item)
       return res.status(400).json({ error: 'fornecedor, cnpj, nota_fiscal e item são obrigatórios.' })
 
+    // Helper: tenta operação; se erro indicar coluna faltante, refaz sem ela
+    async function tentarSemColunaFaltante(payload, fn) {
+      let r = await fn(payload)
+      let p = payload
+      while (r.error && /Could not find the '([^']+)' column/.test(r.error.message)) {
+        const col = r.error.message.match(/Could not find the '([^']+)' column/)[1]
+        if (!(col in p)) break
+        p = { ...p }
+        delete p[col]
+        r = await fn(p)
+      }
+      return r
+    }
+
     // Upsert veículo
     const veiculoPayload = {
       placa: man.placa,
@@ -219,44 +233,45 @@ async function converterEmOrdem(req, res) {
     }
     if (man.modelo) veiculoPayload.observacao = `Modelo: ${man.modelo}`
 
-    const { data: v, error: ve } = await supabase
-      .from('veiculos')
-      .upsert(veiculoPayload, { onConflict: 'placa' })
-      .select().single()
+    const { data: v, error: ve } = await tentarSemColunaFaltante(
+      veiculoPayload,
+      p => supabase.from('veiculos').upsert(p, { onConflict: 'placa' }).select().single()
+    )
     if (ve) throw ve
 
     // Upsert fornecedor
     const cnpjLimpo = cnpj.toString().replace(/\D/g, '')
-    const { data: f, error: fe } = await supabase
-      .from('fornecedores')
-      .upsert({ razao_social: fornecedor.toString().trim(), cnpj: cnpjLimpo }, { onConflict: 'cnpj' })
-      .select().single()
+    const { data: f, error: fe } = await tentarSemColunaFaltante(
+      { razao_social: fornecedor.toString().trim(), cnpj: cnpjLimpo },
+      p => supabase.from('fornecedores').upsert(p, { onConflict: 'cnpj' }).select().single()
+    )
     if (fe) throw fe
 
     // Criar ordem
     const vi = parseFloat(valor_item) || 0
     const qt = parseInt(quantidade) || 1
 
-    const { data: o, error: oe } = await supabase
-      .from('ordens')
-      .insert({
-        veiculo_id:    v.id,
-        fornecedor_id: f.id,
-        supervisor:    supervisor || man.supervisor || '',
-        num_ordem:     num_ordem || man.num_os || null,
-        link_ordem:    link_ordem || null,
-        nota_fiscal:   nota_fiscal.toString().trim(),
-        data_ordem:    parseData(data_ordem) || new Date().toISOString().split('T')[0],
-        categoria,
-        item:          item.toString().trim(),
-        valor_item:    vi,
-        quantidade:    qt,
-        valor_total:   vi * qt,
-        observacao:    observacao || man.observacoes || null,
-        status:        'Pendente',
-        origem:        'Manual'
-      })
-      .select().single()
+    const ordemPayload = {
+      veiculo_id:    v.id,
+      fornecedor_id: f.id,
+      supervisor:    supervisor || man.supervisor || '',
+      num_ordem:     num_ordem || man.num_os || null,
+      link_ordem:    link_ordem || null,
+      nota_fiscal:   nota_fiscal.toString().trim(),
+      data_ordem:    parseData(data_ordem) || new Date().toISOString().split('T')[0],
+      categoria,
+      item:          item.toString().trim(),
+      valor_item:    vi,
+      quantidade:    qt,
+      valor_total:   vi * qt,
+      observacao:    observacao || man.observacoes || null,
+      status:        'Pendente',
+      origem:        'Manual'
+    }
+    const { data: o, error: oe } = await tentarSemColunaFaltante(
+      ordemPayload,
+      p => supabase.from('ordens').insert(p).select().single()
+    )
     if (oe) throw oe
 
     // Marcar manutenção como convertida
