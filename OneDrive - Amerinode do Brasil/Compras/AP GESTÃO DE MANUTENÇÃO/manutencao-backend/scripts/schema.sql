@@ -103,14 +103,24 @@ CREATE TABLE IF NOT EXISTS manutencoes (
   veiculo_devolvido BOOLEAN      DEFAULT false,
   data_devolucao    DATE,
   num_os            VARCHAR(100),
+  oficina           VARCHAR(150),
   status            VARCHAR(30)  DEFAULT 'Em Andamento'
-                    CHECK (status IN ('Em Andamento','Retornado','Cancelado')),
+                    CHECK (status IN ('Em Andamento','Retornado','Cancelado','Orçamento','Aprovado')),
   observacoes       TEXT,
+  anexos            JSONB        DEFAULT '[]'::jsonb,
   convertido_ordem  BOOLEAN      DEFAULT false,
   ordem_id          UUID         REFERENCES ordens(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ  DEFAULT NOW(),
   updated_at        TIMESTAMPTZ  DEFAULT NOW()
 );
+
+-- ── Migração para bancos existentes ──────────────────────────
+-- Execute estes comandos uma vez se a tabela manutencoes já existir:
+-- ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS oficina VARCHAR(150);
+-- ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS anexos  JSONB DEFAULT '[]'::jsonb;
+-- ALTER TABLE manutencoes DROP CONSTRAINT IF EXISTS manutencoes_status_check;
+-- ALTER TABLE manutencoes ADD  CONSTRAINT manutencoes_status_check
+--   CHECK (status IN ('Em Andamento','Retornado','Cancelado','Orçamento','Aprovado'));
 
 CREATE INDEX IF NOT EXISTS idx_manutencoes_placa    ON manutencoes(placa);
 CREATE INDEX IF NOT EXISTS idx_manutencoes_status   ON manutencoes(status);

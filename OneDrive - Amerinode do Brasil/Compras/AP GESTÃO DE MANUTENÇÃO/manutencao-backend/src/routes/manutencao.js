@@ -14,10 +14,21 @@ const upload = multer({
   }
 })
 
+const uploadAnexo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/')
+    cb(ok ? null : new Error('Apenas PDF ou imagem são aceitos'), ok)
+  }
+})
+
 router.get('/',                   c.listar)
 router.get('/dashboard/resumo',   c.resumoDash)
 router.get('/dashboard/rankings', c.rankingsDash)
 router.get('/dashboard/serie',    c.serieDash)
+router.post('/anexos',            uploadAnexo.single('arquivo'), c.uploadAnexo)
+router.delete('/anexos',          c.excluirAnexo)
 router.get('/:id',                c.buscarPorId)
 router.post('/',                  c.criar)
 router.post('/importar',          upload.single('arquivo'), c.importarManutencao)

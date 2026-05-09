@@ -718,9 +718,12 @@ tr:hover td{background:#F9F9F9}
         </select>
       </div>
       <div class="form-group"><label>Nº OS / Sinistro</label><input id="man-num-os" placeholder="Ex: OS-1234 / SIN-987"></div>
+      <div class="form-group"><label>Oficina</label><input id="man-oficina" placeholder="Nome da oficina"></div>
       <div class="form-group"><label>Status</label>
         <select id="man-status">
           <option value="Em Andamento">Em Andamento</option>
+          <option value="Orçamento">Orçamento</option>
+          <option value="Aprovado">Aprovado</option>
           <option value="Retornado">Retornado</option>
           <option value="Cancelado">Cancelado</option>
         </select>
@@ -739,6 +742,16 @@ tr:hover td{background:#F9F9F9}
       <div class="form-group"><label>Data Saída da Oficina</label><input type="date" id="man-data-saida"></div>
     </div>
     <div class="form-group" style="margin-top:12px"><label>Observações</label><textarea id="man-observacoes" rows="2" placeholder="Informações adicionais..."></textarea></div>
+
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #EEE">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="font-weight:600;font-size:13px">Anexos (PDF ou imagem)</label>
+        <button type="button" class="btn" style="padding:4px 10px;font-size:12px" onclick="adicionarAnexoSlot()">+ Adicionar anexo</button>
+      </div>
+      <div id="man-anexos-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <p style="font-size:11px;color:#888;margin-top:6px">Mínimo 3 anexos. Tamanho máx. 5 MB por arquivo.</p>
+    </div>
+
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
       <button class="btn btn-primary" onclick="salvarManutencao()">Salvar</button>
       <button class="btn" onclick="closeModal('modal-nova-manutencao')">Cancelar</button>
@@ -2442,11 +2455,118 @@ async function carregarManLista(pg){
 }
 
 // ── Form novo / editar ────────────────────────────────────────
+let manAnexos=[]
+const MAN_ANEXO_MAX_BYTES=5*1024*1024
+
+function renderAnexosManutencao(){
+  const wrap=document.getElementById('man-anexos-list')
+  if(!wrap) return
+  if(manAnexos.length===0){
+    wrap.innerHTML='<p style="font-size:12px;color:#999">Nenhum anexo. Clique em "+ Adicionar anexo" para começar.</p>'
+    return
+  }
+  wrap.innerHTML=manAnexos.map((a,i)=>{
+    const icone=a.mime&&a.mime.startsWith('image/')?'🖼️':(a.mime==='application/pdf'?'📄':'📎')
+    const status = a.uploading ? '<span style="color:#0066cc;font-size:11px">⏳ enviando...</span>'
+      : a.url ? `<a href="${a.url}" target="_blank" style="color:#0066cc;font-size:11px;text-decoration:underline">${a.arquivo_nome} (${formatBytes(a.tamanho||0)})</a>`
+      : '<i style="color:#bbb;font-size:11px">sem arquivo</i>'
+    return `
+    <div style="display:flex;gap:8px;align-items:center;border:1px solid #EEE;border-radius:6px;padding:8px;background:#FAFAFA">
+      <div style="flex:0 0 28px;text-align:center;font-size:18px">${icone}</div>
+      <input type="text" placeholder="Nome do arquivo" value="${(a.nome||'').replace(/"/g,'&quot;')}" oninput="manAnexos[${i}].nome=this.value" style="flex:1;padding:5px 8px;font-size:12px;border:1px solid #DDD;border-radius:4px">
+      <input type="file" accept="application/pdf,image/*" onchange="anexarArquivoManutencao(${i}, this)" ${a.uploading?'disabled':''} style="flex:1;font-size:11px">
+      <span style="min-width:140px;font-size:11px;color:#666">${status}</span>
+      <button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px" onclick="removerAnexoManutencao(${i})" ${a.uploading?'disabled':''}>🗑️</button>
+    </div>`
+  }).join('')
+}
+
+function formatBytes(n){
+  if(!n) return '0 B'
+  if(n<1024) return n+' B'
+  if(n<1024*1024) return (n/1024).toFixed(1)+' KB'
+  return (n/1024/1024).toFixed(1)+' MB'
+}
+
+function novoAnexoVazio(){
+  return {nome:'',arquivo_nome:'',mime:'',tamanho:0,path:'',url:'',uploading:false}
+}
+
+function adicionarAnexoSlot(){
+  manAnexos.push(novoAnexoVazio())
+  renderAnexosManutencao()
+}
+
+async function removerAnexoManutencao(i){
+  const a=manAnexos[i]
+  if(a&&a.path){
+    try{
+      await fetch(`${API}/api/manutencao/anexos`,{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({path:a.path})
+      })
+    }catch(e){console.warn('falha ao remover do storage',e)}
+  }
+  manAnexos.splice(i,1)
+  renderAnexosManutencao()
+}
+
+async function anexarArquivoManutencao(i, input){
+  const f=input.files&&input.files[0]
+  if(!f) return
+  if(f.size>MAN_ANEXO_MAX_BYTES){alert('Arquivo excede 5 MB.');input.value='';return}
+  const ok=f.type==='application/pdf'||f.type.startsWith('image/')
+  if(!ok){alert('Apenas PDF ou imagem.');input.value='';return}
+
+  // Se já havia arquivo neste slot, remove o antigo do storage
+  if(manAnexos[i].path){
+    const oldPath=manAnexos[i].path
+    fetch(`${API}/api/manutencao/anexos`,{
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({path:oldPath})
+    }).catch(()=>{})
+  }
+
+  manAnexos[i].uploading=true
+  manAnexos[i].arquivo_nome=f.name
+  manAnexos[i].mime=f.type
+  manAnexos[i].tamanho=f.size
+  if(!manAnexos[i].nome) manAnexos[i].nome=f.name.replace(/\.[^.]+$/,'')
+  renderAnexosManutencao()
+
+  try{
+    const fd=new FormData()
+    fd.append('arquivo', f)
+    const r=await fetch(`${API}/api/manutencao/anexos`,{method:'POST',body:fd})
+    if(!r.ok){
+      const er=await r.json().catch(()=>({error:r.statusText}))
+      throw new Error(er.error||'falha no upload')
+    }
+    const data=await r.json()
+    manAnexos[i].path=data.path
+    manAnexos[i].url=data.url
+    manAnexos[i].arquivo_nome=data.arquivo_nome
+    manAnexos[i].mime=data.mime
+    manAnexos[i].tamanho=data.tamanho
+  }catch(e){
+    alert('Erro ao enviar arquivo: '+e.message)
+    manAnexos[i].arquivo_nome=''
+    manAnexos[i].mime=''
+    manAnexos[i].tamanho=0
+    input.value=''
+  }finally{
+    manAnexos[i].uploading=false
+    renderAnexosManutencao()
+  }
+}
+
 function abrirNovaManutencao(){
   manEditId=null
   document.getElementById('man-modal-title').textContent='Registrar Manutenção'
   ;['man-placa','man-modelo','man-localidade','man-supervisor','man-data-entrada',
-    'man-previsao-retorno','man-data-saida','man-data-devolucao','man-num-os','man-observacoes']
+    'man-previsao-retorno','man-data-saida','man-data-devolucao','man-num-os','man-oficina','man-observacoes']
     .forEach(id=>document.getElementById(id).value='')
   document.getElementById('man-dias-previstos').value=''
   document.getElementById('man-tipo').value='Corretiva'
@@ -2455,6 +2575,8 @@ function abrirNovaManutencao(){
   document.getElementById('man-devolvido').checked=false
   document.getElementById('man-devol-wrap').style.display='none'
   document.getElementById('man-data-devol-wrap').style.display='none'
+  manAnexos=[novoAnexoVazio(),novoAnexoVazio(),novoAnexoVazio()]
+  renderAnexosManutencao()
   showModal('modal-nova-manutencao')
 }
 
@@ -2477,7 +2599,14 @@ async function editarManutencao(id){
     document.getElementById('man-devolvido').checked=!!m.veiculo_devolvido
     document.getElementById('man-data-devolucao').value=m.data_devolucao||''
     document.getElementById('man-num-os').value=m.num_os||''
+    document.getElementById('man-oficina').value=m.oficina||''
     document.getElementById('man-observacoes').value=m.observacoes||''
+    manAnexos = Array.isArray(m.anexos) ? m.anexos.map(a=>({
+      nome:a.nome||'', arquivo_nome:a.arquivo_nome||'', mime:a.mime||'',
+      tamanho:a.tamanho||0, path:a.path||'', url:a.url||'', uploading:false
+    })) : []
+    while(manAnexos.length<3) manAnexos.push(novoAnexoVazio())
+    renderAnexosManutencao()
     toggleDevolucao()
     showModal('modal-nova-manutencao')
   }catch(e){alert('Erro ao carregar: '+e.message)}
@@ -2505,9 +2634,19 @@ async function salvarManutencao(){
     veiculo_devolvido: document.getElementById('man-devolvido').checked,
     data_devolucao: document.getElementById('man-data-devolucao').value||null,
     num_os:        document.getElementById('man-num-os').value.trim(),
-    observacoes:   document.getElementById('man-observacoes').value.trim()
+    oficina:       document.getElementById('man-oficina').value.trim(),
+    observacoes:   document.getElementById('man-observacoes').value.trim(),
+    anexos:        manAnexos.filter(a=>a.path).map(a=>({
+      nome:a.nome||a.arquivo_nome||'', arquivo_nome:a.arquivo_nome,
+      mime:a.mime, tamanho:a.tamanho, path:a.path, url:a.url
+    }))
   }
+  if(manAnexos.some(a=>a.uploading)){alert('Aguarde o término dos uploads.');return}
   if(!payload.placa||!payload.data_entrada){alert('Placa e Data de Entrada são obrigatórios.');return}
+  const anexosComArquivo = manAnexos.filter(a=>a.path).length
+  if(anexosComArquivo<3){
+    if(!confirm(`Você anexou apenas ${anexosComArquivo} arquivo(s). O mínimo recomendado é 3. Deseja salvar mesmo assim?`)) return
+  }
   try{
     if(manEditId){
       await apiCall(`/api/manutencao/${manEditId}`,'PUT',payload)

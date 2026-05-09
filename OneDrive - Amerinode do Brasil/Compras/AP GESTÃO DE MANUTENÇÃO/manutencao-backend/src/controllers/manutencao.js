@@ -94,7 +94,7 @@ async function criar(req, res) {
       data_entrada, data_saida, previsao_retorno, dias_previstos,
       tipo_manutencao = 'Corretiva',
       veiculo_alugado = false, veiculo_devolvido = false, data_devolucao,
-      num_os, status = 'Em Andamento', observacoes
+      num_os, oficina, status = 'Em Andamento', observacoes, anexos
     } = req.body
 
     if (!placa || !data_entrada)
@@ -114,8 +114,10 @@ async function criar(req, res) {
       veiculo_devolvido: Boolean(veiculo_devolvido),
       data_devolucao: parseData(data_devolucao),
       num_os: num_os?.toString().trim() || null,
+      oficina: oficina?.toString().trim() || null,
       status,
       observacoes: observacoes?.toString().trim() || null,
+      anexos: Array.isArray(anexos) ? anexos : [],
       convertido_ordem: false
     }
 
@@ -139,7 +141,7 @@ async function atualizar(req, res) {
       'placa','modelo','localidade','supervisor',
       'data_entrada','data_saida','previsao_retorno','dias_previstos',
       'tipo_manutencao','veiculo_alugado','veiculo_devolvido','data_devolucao',
-      'num_os','status','observacoes'
+      'num_os','oficina','status','observacoes','anexos'
     ]
 
     const payload = {}
@@ -528,8 +530,78 @@ async function importarManutencao(req, res) {
   }
 }
 
+// ── Anexos: Supabase Storage ──────────────────────────────────────────────────
+const ANEXO_BUCKET = process.env.SUPABASE_BUCKET_ANEXOS || 'manutencao-anexos'
+let bucketReady = false
+
+async function ensureBucket() {
+  if (bucketReady) return
+  try {
+    const { data } = await supabase.storage.getBucket(ANEXO_BUCKET)
+    if (!data) {
+      await supabase.storage.createBucket(ANEXO_BUCKET, {
+        public: true,
+        fileSizeLimit: 10 * 1024 * 1024,
+        allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      })
+    }
+    bucketReady = true
+  } catch (e) {
+    // se já existe ou erro de leitura, tenta criar mesmo assim
+    try {
+      await supabase.storage.createBucket(ANEXO_BUCKET, { public: true })
+    } catch (_) {}
+    bucketReady = true
+  }
+}
+
+async function uploadAnexo(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' })
+    const ok = req.file.mimetype === 'application/pdf' || req.file.mimetype.startsWith('image/')
+    if (!ok) return res.status(400).json({ error: 'Apenas PDF ou imagem.' })
+
+    await ensureBucket()
+    const safeName = req.file.originalname.replace(/[^\w.\-]+/g, '_')
+    const path = `anexos/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${safeName}`
+
+    const { error } = await supabase.storage
+      .from(ANEXO_BUCKET)
+      .upload(path, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      })
+    if (error) throw error
+
+    const { data: pub } = supabase.storage.from(ANEXO_BUCKET).getPublicUrl(path)
+
+    res.status(201).json({
+      path,
+      url: pub.publicUrl,
+      arquivo_nome: req.file.originalname,
+      mime: req.file.mimetype,
+      tamanho: req.file.size
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
+async function excluirAnexo(req, res) {
+  try {
+    const { path } = req.body
+    if (!path) return res.status(400).json({ error: 'path é obrigatório.' })
+    const { error } = await supabase.storage.from(ANEXO_BUCKET).remove([path])
+    if (error) throw error
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+}
+
 module.exports = {
   listar, buscarPorId, criar, atualizar, excluir,
   converterEmOrdem, importarManutencao,
-  resumoDash, rankingsDash, serieDash
+  resumoDash, rankingsDash, serieDash,
+  uploadAnexo, excluirAnexo
 }
