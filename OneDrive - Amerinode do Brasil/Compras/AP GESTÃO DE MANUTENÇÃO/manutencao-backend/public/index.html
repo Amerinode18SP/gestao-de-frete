@@ -761,24 +761,37 @@ tr:hover td{background:#F9F9F9}
 
 <!-- MODAL CONVERTER EM ORDEM -->
 <div class="modal-overlay" id="modal-converter-ordem">
-  <div class="modal" style="max-width:580px">
+  <div class="modal" style="max-width:780px">
     <h3>Converter em Ordem de Compra</h3>
-    <p style="font-size:13px;color:#666;margin-bottom:16px">Informe os dados da ordem de compra para este serviço.</p>
+    <p style="font-size:13px;color:#666;margin-bottom:16px">Informe os dados da ordem de compra. Você pode adicionar vários itens — uma linha por item será gerada com o mesmo Nº de OC, NF e fornecedor.</p>
     <input type="hidden" id="conv-man-id">
     <div class="form-grid">
       <div class="form-group"><label>Fornecedor *</label><input id="conv-fornecedor" placeholder="Razão social"></div>
       <div class="form-group"><label>CNPJ *</label><input id="conv-cnpj" placeholder="00.000.000/0000-00"></div>
       <div class="form-group"><label>Nota Fiscal *</label><input id="conv-nota-fiscal" placeholder="Nº da nota fiscal"></div>
       <div class="form-group"><label>Data da Ordem</label><input type="date" id="conv-data-ordem"></div>
-      <div class="form-group"><label>Item / Serviço *</label><input id="conv-item" placeholder="Ex: Revisão corretiva"></div>
-      <div class="form-group"><label>Categoria</label>
-        <select id="conv-categoria"><option value="Serviço">Serviço</option><option value="Produto">Produto</option></select>
-      </div>
-      <div class="form-group"><label>Valor Unitário (R$)</label><input type="number" id="conv-valor-item" placeholder="0,00" step="0.01" min="0"></div>
-      <div class="form-group"><label>Quantidade</label><input type="number" id="conv-quantidade" value="1" min="1"></div>
       <div class="form-group"><label>Nº Ordem de Compra</label><input id="conv-num-ordem" placeholder="Ex: OC-44821"></div>
+      <div class="form-group"><label>Link da OC</label><input id="conv-link-ordem" placeholder="https://..."></div>
       <div class="form-group"><label>Supervisor</label><input id="conv-supervisor"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="conv-status">
+          <option value="Pendente">Pendente</option>
+          <option value="Em Preparação">Em Preparação</option>
+          <option value="Concluído">Concluído</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+      </div>
     </div>
+
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #EEE">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="font-weight:600;font-size:13px">Itens *</label>
+        <button type="button" class="btn" style="padding:4px 10px;font-size:12px" onclick="adicionarItemConv()">+ Adicionar item</button>
+      </div>
+      <div id="conv-itens-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <p style="font-size:11px;color:#888;margin-top:6px">Total: <strong id="conv-total">R$ 0,00</strong></p>
+    </div>
+
     <div class="form-group" style="margin-top:12px"><label>Observação</label><textarea id="conv-observacao" rows="2"></textarea></div>
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
       <button class="btn btn-primary" onclick="confirmarConversao()">Criar Ordem de Compra</button>
@@ -2712,41 +2725,91 @@ async function excluirManutencao(id){
 }
 
 // ── Converter em Ordem de Compra ──────────────────────────────
+let convItens=[]
+
+function novoItemConv(){return{item:'',categoria:'Serviço',valor_item:0,quantidade:1}}
+
+function renderItensConv(){
+  const wrap=document.getElementById('conv-itens-list')
+  if(!wrap) return
+  if(convItens.length===0){
+    wrap.innerHTML='<p style="font-size:12px;color:#999">Nenhum item. Clique em "+ Adicionar item" para começar.</p>'
+  } else {
+    wrap.innerHTML=convItens.map((it,i)=>`
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 0.7fr auto;gap:6px;align-items:end;border:1px solid #EEE;border-radius:6px;padding:8px;background:#FAFAFA">
+        <div><label style="font-size:11px;color:#666">Item / Serviço</label>
+          <input value="${(it.item||'').replace(/"/g,'&quot;')}" placeholder="Ex: Disco de freio" oninput="convItens[${i}].item=this.value" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #DDD;border-radius:4px"></div>
+        <div><label style="font-size:11px;color:#666">Categoria</label>
+          <select onchange="convItens[${i}].categoria=this.value" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #DDD;border-radius:4px">
+            <option value="Serviço" ${it.categoria==='Serviço'?'selected':''}>Serviço</option>
+            <option value="Produto" ${it.categoria==='Produto'?'selected':''}>Produto</option>
+          </select></div>
+        <div><label style="font-size:11px;color:#666">Valor Unit. (R$)</label>
+          <input type="number" step="0.01" min="0" value="${it.valor_item||0}" oninput="convItens[${i}].valor_item=parseFloat(this.value)||0;atualizarTotalConv()" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #DDD;border-radius:4px"></div>
+        <div><label style="font-size:11px;color:#666">Qtd.</label>
+          <input type="number" min="1" value="${it.quantidade||1}" oninput="convItens[${i}].quantidade=parseInt(this.value)||1;atualizarTotalConv()" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #DDD;border-radius:4px"></div>
+        <button type="button" class="btn btn-danger" style="padding:5px 8px;font-size:11px" onclick="removerItemConv(${i})">🗑️</button>
+      </div>`).join('')
+  }
+  atualizarTotalConv()
+}
+
+function atualizarTotalConv(){
+  const tot=convItens.reduce((s,it)=>s+(parseFloat(it.valor_item)||0)*(parseInt(it.quantidade)||1),0)
+  const el=document.getElementById('conv-total')
+  if(el) el.textContent='R$ '+tot.toFixed(2).replace('.',',')
+}
+
+function adicionarItemConv(){convItens.push(novoItemConv());renderItensConv()}
+function removerItemConv(i){convItens.splice(i,1);renderItensConv()}
+
 function abrirConverter(id, supervisor){
   document.getElementById('conv-man-id').value=id
   document.getElementById('conv-supervisor').value=supervisor||''
   document.getElementById('conv-data-ordem').value=hoje()
-  ;['conv-fornecedor','conv-cnpj','conv-nota-fiscal','conv-item','conv-num-ordem','conv-observacao']
+  ;['conv-fornecedor','conv-cnpj','conv-nota-fiscal','conv-num-ordem','conv-link-ordem','conv-observacao']
     .forEach(i=>document.getElementById(i).value='')
-  document.getElementById('conv-valor-item').value='0'
-  document.getElementById('conv-quantidade').value='1'
-  document.getElementById('conv-categoria').value='Serviço'
+  document.getElementById('conv-status').value='Pendente'
+  convItens=[novoItemConv()]
+  renderItensConv()
   showModal('modal-converter-ordem')
 }
 
 async function confirmarConversao(){
   const id=document.getElementById('conv-man-id').value
+  const itens=convItens
+    .map(it=>({
+      item:(it.item||'').trim(),
+      categoria:it.categoria||'Serviço',
+      valor_item:parseFloat(it.valor_item)||0,
+      quantidade:parseInt(it.quantidade)||1
+    }))
+    .filter(it=>it.item)
   const payload={
     fornecedor:   document.getElementById('conv-fornecedor').value.trim(),
     cnpj:         document.getElementById('conv-cnpj').value.trim(),
     nota_fiscal:  document.getElementById('conv-nota-fiscal').value.trim(),
     data_ordem:   document.getElementById('conv-data-ordem').value,
-    item:         document.getElementById('conv-item').value.trim(),
-    categoria:    document.getElementById('conv-categoria').value,
-    valor_item:   parseFloat(document.getElementById('conv-valor-item').value)||0,
-    quantidade:   parseInt(document.getElementById('conv-quantidade').value)||1,
     num_ordem:    document.getElementById('conv-num-ordem').value.trim(),
+    link_ordem:   document.getElementById('conv-link-ordem').value.trim(),
     supervisor:   document.getElementById('conv-supervisor').value.trim(),
-    observacao:   document.getElementById('conv-observacao').value.trim()
+    status:       document.getElementById('conv-status').value,
+    observacao:   document.getElementById('conv-observacao').value.trim(),
+    itens
   }
-  if(!payload.fornecedor||!payload.cnpj||!payload.nota_fiscal||!payload.item){
-    alert('Fornecedor, CNPJ, Nota Fiscal e Item são obrigatórios.')
+  if(!payload.fornecedor||!payload.cnpj||!payload.nota_fiscal){
+    alert('Fornecedor, CNPJ e Nota Fiscal são obrigatórios.')
+    return
+  }
+  if(itens.length===0){
+    alert('Adicione pelo menos um item.')
     return
   }
   try{
     const r=await apiCall(`/api/manutencao/${id}/converter`,'POST',payload)
     closeModal('modal-converter-ordem')
-    alert(`✅ Ordem de compra criada com sucesso!\nID: ${r.ordem?.id||''}`)
+    const n=r.ordens?r.ordens.length:(r.ordem?1:0)
+    alert(`✅ ${n} item(s) criado(s) na ordem de compra.`)
     carregarManutencao()
   }catch(e){alert('Erro ao converter: '+e.message)}
 }

@@ -202,13 +202,27 @@ async function converterEmOrdem(req, res) {
     const {
       fornecedor, cnpj,
       supervisor, nota_fiscal, data_ordem,
+      // Item único (compat. retro)
       categoria = 'Serviço',
       item, valor_item = 0, quantidade = 1,
-      observacao, num_ordem, link_ordem
+      // Lista de itens (novo formato — múltiplos itens por OC)
+      itens,
+      observacao, num_ordem, link_ordem,
+      status = 'Pendente'
     } = req.body
 
-    if (!fornecedor || !cnpj || !nota_fiscal || !item)
-      return res.status(400).json({ error: 'fornecedor, cnpj, nota_fiscal e item são obrigatórios.' })
+    // Normaliza para array
+    const listaItens = Array.isArray(itens) && itens.length
+      ? itens.map(it => ({
+          item:       (it.item || '').toString().trim(),
+          categoria:  it.categoria || 'Serviço',
+          valor_item: parseFloat(it.valor_item) || 0,
+          quantidade: parseInt(it.quantidade) || 1
+        })).filter(it => it.item)
+      : (item ? [{ item: item.toString().trim(), categoria, valor_item: parseFloat(valor_item) || 0, quantidade: parseInt(quantidade) || 1 }] : [])
+
+    if (!fornecedor || !cnpj || !nota_fiscal || listaItens.length === 0)
+      return res.status(400).json({ error: 'fornecedor, cnpj, nota_fiscal e ao menos um item são obrigatórios.' })
 
     // Helper: tenta operação; se erro indicar coluna faltante, refaz sem ela
     async function tentarSemColunaFaltante(payload, fn) {
@@ -247,46 +261,48 @@ async function converterEmOrdem(req, res) {
     )
     if (fe) throw fe
 
-    // Criar ordem
-    const vi = parseFloat(valor_item) || 0
-    const qt = parseInt(quantidade) || 1
-
-    const ordemPayload = {
-      veiculo_id:    v.id,
-      fornecedor_id: f.id,
-      supervisor:    supervisor || man.supervisor || '',
-      num_ordem:     num_ordem || man.num_os || null,
-      link_ordem:    link_ordem || null,
-      nota_fiscal:   nota_fiscal.toString().trim(),
-      data_ordem:    parseData(data_ordem) || new Date().toISOString().split('T')[0],
-      categoria,
-      item:          item.toString().trim(),
-      valor_item:    vi,
-      quantidade:    qt,
-      valor_total:   vi * qt,
-      observacao:    observacao || man.observacoes || null,
-      status:        'Pendente',
-      origem:        'Manual'
+    // Criar uma linha de ordem por item
+    const dataOrdem = parseData(data_ordem) || new Date().toISOString().split('T')[0]
+    const ordensCriadas = []
+    for (const it of listaItens) {
+      const ordemPayload = {
+        veiculo_id:    v.id,
+        fornecedor_id: f.id,
+        supervisor:    supervisor || man.supervisor || '',
+        num_ordem:     num_ordem || man.num_os || null,
+        link_ordem:    link_ordem || null,
+        nota_fiscal:   nota_fiscal.toString().trim(),
+        data_ordem:    dataOrdem,
+        categoria:     it.categoria,
+        item:          it.item,
+        valor_item:    it.valor_item,
+        quantidade:    it.quantidade,
+        valor_total:   it.valor_item * it.quantidade,
+        observacao:    observacao || man.observacoes || null,
+        status,
+        origem:        'Manual'
+      }
+      const { data: o, error: oe } = await tentarSemColunaFaltante(
+        ordemPayload,
+        p => supabase.from('ordens').insert(p).select().single()
+      )
+      if (oe) throw oe
+      ordensCriadas.push(o)
     }
-    const { data: o, error: oe } = await tentarSemColunaFaltante(
-      ordemPayload,
-      p => supabase.from('ordens').insert(p).select().single()
-    )
-    if (oe) throw oe
 
-    // Marcar manutenção como convertida
+    // Marcar manutenção como convertida (referencia a primeira ordem)
     await supabase
       .from('manutencoes')
       .update({
         convertido_ordem: true,
-        ordem_id: o.id,
+        ordem_id: ordensCriadas[0].id,
         status: man.status === 'Em Andamento' ? 'Retornado' : man.status,
         data_saida: man.data_saida || new Date().toISOString().split('T')[0],
         updated_at: new Date().toISOString()
       })
       .eq('id', req.params.id)
 
-    res.status(201).json({ ordem: o, manutencao_id: req.params.id })
+    res.status(201).json({ ordens: ordensCriadas, ordem: ordensCriadas[0], manutencao_id: req.params.id })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
