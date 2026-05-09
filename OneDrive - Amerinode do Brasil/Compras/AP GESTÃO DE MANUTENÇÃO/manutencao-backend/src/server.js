@@ -9,6 +9,7 @@ const fornecedoresRoutes = require('./routes/fornecedores')
 const importRoutes      = require('./routes/importar')
 const dashboardRoutes   = require('./routes/dashboard')
 const manutencaoRoutes  = require('./routes/manutencao')
+const { runMigrations } = require('./migrate')
 
 const app  = express()
 const PORT = process.env.PORT || 3000
@@ -50,7 +51,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erro interno do servidor', detail: err.message })
 })
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`✅  API rodando em http://localhost:${PORT}`)
   console.log(`📋  Ambiente: ${process.env.NODE_ENV || 'development'}`)
+  await runMigrations()
 })
