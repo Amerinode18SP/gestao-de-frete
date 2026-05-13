@@ -311,6 +311,7 @@ tr:hover td{background:#F9F9F9}
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" onclick="showPage('usuarios')">👥 Usuários</div>
   <div class="sidebar-bottom">
+    <button class="logout-btn" id="btn-backup-completo" onclick="gerarBackupCompleto()" style="margin-bottom:6px;display:none;background:#F0F8FF;color:#0C447C;border-color:#B7D4F0">💾 Backup Completo</button>
     <button class="logout-btn" onclick="fazerLogout()">🚪 Sair</button>
   </div>
 </aside>
@@ -1144,6 +1145,7 @@ async function iniciarSessao(user){
   document.getElementById('nav-importar').classList.toggle('disabled',!isAdmin)
   document.getElementById('nav-usuarios').style.display=isAdmin?'flex':'none'
   document.getElementById('btn-nova-ordem').style.display=isAdmin?'inline-block':'none'
+  document.getElementById('btn-backup-completo').style.display=isAdmin?'block':'none'
   document.querySelectorAll('.man-admin-only').forEach(el=>el.style.display=isAdmin?'inline-block':'none')
 
   // Mostrar app
@@ -2515,6 +2517,140 @@ function exportarAnalisePDF(){
   })
 
   doc.save(`analise_gastos_${analiseAnoAtual}.pdf`)
+}
+
+// ── BACKUP COMPLETO ──────────────────────────────────────────
+async function gerarBackupCompleto(){
+  const btn = document.getElementById('btn-backup-completo')
+  if(!confirm('Gerar backup completo do sistema?\n\nIsso vai baixar um arquivo XLSX com:\n• Todas as ordens de compra\n• Todos os veículos\n• Todos os fornecedores\n\nO download pode levar alguns segundos.')) return
+  const txt = btn.textContent
+  btn.disabled = true; btn.textContent = '⏳ Gerando backup...'
+  try{
+    // 1. Buscar todas as ordens (paginado)
+    const PAGE = 1000
+    let pagina = 1, ordensAll = []
+    while(true){
+      const r = await fetch(`${API}/api/ordens?page=${pagina}&limit=${PAGE}`)
+      const j = await r.json()
+      const lote = j.data || []
+      ordensAll = ordensAll.concat(lote)
+      if(lote.length < PAGE || pagina >= 30) break
+      pagina++
+    }
+
+    // 2. Buscar veículos e fornecedores em paralelo
+    const [vRes, fRes] = await Promise.all([
+      fetch(`${API}/api/veiculos`).then(r=>r.json()),
+      fetch(`${API}/api/fornecedores`).then(r=>r.json())
+    ])
+    const veiculos     = Array.isArray(vRes) ? vRes : (vRes.data || [])
+    const fornecedores = Array.isArray(fRes) ? fRes : (fRes.data || [])
+
+    // 3. Montar workbook
+    const wb = XLSX.utils.book_new()
+    const stamp = new Date().toLocaleString('pt-BR')
+    const dt    = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')
+
+    // Aba INFO
+    const totalGasto = ordensAll.reduce((s,o)=>s+Number(o.valor_total||0),0)
+    const wsInfo = XLSX.utils.aoa_to_sheet([
+      ['BACKUP COMPLETO — Sistema de Gestão de Manutenção Veicular'],
+      [],
+      ['Gerado em:', stamp],
+      ['Gerado por:', currentUser?.email || '—'],
+      [],
+      ['RESUMO'],
+      ['Total de ordens de compra:', ordensAll.length],
+      ['Total de veículos:',         veiculos.length],
+      ['Total de fornecedores:',     fornecedores.length],
+      ['Valor total das ordens (R$):', Number(totalGasto.toFixed(2))],
+      [],
+      ['INSTRUÇÕES DE RESTAURAÇÃO'],
+      ['1. Guarde este arquivo num local seguro (OneDrive, Google Drive, pendrive)'],
+      ['2. Para restaurar dados isolados, copie/cole as colunas no template de importação'],
+      ['3. Para restauração completa do banco, use o backup do Supabase (Database > Backups)'],
+      ['4. Recomenda-se gerar este backup ao menos 1x por semana'],
+    ])
+    wsInfo['!cols'] = [{wch:42},{wch:40}]
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'INFO')
+
+    // Aba ORDENS
+    const ordensRows = ordensAll.map(o=>({
+      'ID':              o.id||'',
+      'Nº Ordem':        o.num_ordem||'',
+      'Link OC':         o.link_ordem||'',
+      'Data':            fmtData(o.data_ordem),
+      'Placa':           o.veiculo?.placa||'',
+      'Localidade':      o.veiculo?.localidade||'',
+      'KM atual':        o.veiculo?.km_atual||'',
+      'Próx. revisão':   fmtData(o.veiculo?.proxima_revisao),
+      'Supervisor':      o.supervisor||'',
+      'Nota fiscal':     o.nota_fiscal||'',
+      'Categoria':       o.categoria||'',
+      'Item':            o.item||'',
+      'Quantidade':      o.quantidade||1,
+      'Valor unitário':  Number(o.valor_item||0),
+      'Valor total':     Number(o.valor_total||0),
+      'Status':          o.status||'',
+      'Origem':          o.origem||'',
+      'Fornecedor':      o.fornecedor?.razao_social||'',
+      'CNPJ':            o.fornecedor?.cnpj||'',
+      'Observação':      o.observacao||'',
+      'Criado em':       o.created_at ? new Date(o.created_at).toLocaleString('pt-BR') : '',
+      'Atualizado em':   o.updated_at ? new Date(o.updated_at).toLocaleString('pt-BR') : ''
+    }))
+    if(ordensRows.length){
+      const wsO = XLSX.utils.json_to_sheet(ordensRows)
+      wsO['!cols'] = Object.keys(ordensRows[0]).map(k=>({wch:Math.min(Math.max(k.length+2,10),32)}))
+      XLSX.utils.book_append_sheet(wb, wsO, 'Ordens')
+    }
+
+    // Aba VEÍCULOS
+    if(veiculos.length){
+      const veiculosRows = veiculos.map(v=>({
+        'ID':v.id||'', 'Placa':v.placa||'', 'Localidade':v.localidade||'',
+        'KM atual':v.km_atual||'', 'Próxima revisão':fmtData(v.proxima_revisao),
+        'Observação':v.observacao||'',
+        'Criado em':v.created_at?new Date(v.created_at).toLocaleString('pt-BR'):'',
+        'Atualizado em':v.updated_at?new Date(v.updated_at).toLocaleString('pt-BR'):''
+      }))
+      const wsV = XLSX.utils.json_to_sheet(veiculosRows)
+      wsV['!cols'] = [{wch:38},{wch:12},{wch:24},{wch:12},{wch:14},{wch:30},{wch:18},{wch:18}]
+      XLSX.utils.book_append_sheet(wb, wsV, 'Veiculos')
+    }
+
+    // Aba FORNECEDORES
+    if(fornecedores.length){
+      const fRows = fornecedores.map(f=>({
+        'ID':f.id||'', 'Razão social':f.razao_social||'', 'CNPJ':f.cnpj||'',
+        'Observação':f.observacao||'',
+        'Criado em':f.created_at?new Date(f.created_at).toLocaleString('pt-BR'):''
+      }))
+      const wsF = XLSX.utils.json_to_sheet(fRows)
+      wsF['!cols'] = [{wch:38},{wch:36},{wch:20},{wch:30},{wch:18}]
+      XLSX.utils.book_append_sheet(wb, wsF, 'Fornecedores')
+    }
+
+    // Aba JSON RAW (para restauração programática)
+    const raw = JSON.stringify({
+      gerado_em: new Date().toISOString(),
+      gerado_por: currentUser?.email || null,
+      ordens: ordensAll,
+      veiculos,
+      fornecedores
+    }, null, 2)
+    const linhasJson = raw.split('\n').slice(0, 50000).map(l=>[l])
+    const wsJson = XLSX.utils.aoa_to_sheet([['JSON RAW (para restauração — não editar)'],...linhasJson])
+    wsJson['!cols'] = [{wch:120}]
+    XLSX.utils.book_append_sheet(wb, wsJson, 'JSON_RAW')
+
+    XLSX.writeFile(wb, `backup_completo_${dt}.xlsx`)
+    alert(`✅ Backup gerado com sucesso!\n\n• ${ordensAll.length} ordens\n• ${veiculos.length} veículos\n• ${fornecedores.length} fornecedores\n\nGuarde o arquivo num local seguro (OneDrive, Drive, pendrive).`)
+  }catch(e){
+    alert('❌ Erro ao gerar backup: '+e.message)
+  }finally{
+    btn.disabled=false; btn.textContent=txt
+  }
 }
 
 // ── REVISÕES ──────────────────────────────────────────────────
