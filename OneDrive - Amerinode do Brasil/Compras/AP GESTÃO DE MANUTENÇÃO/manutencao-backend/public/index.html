@@ -433,6 +433,15 @@ tr:hover td{background:#F9F9F9}
           <option value="Serviço">Serviço</option>
           <option value="Produto">Produto</option>
         </select>
+        <select id="filtro-ordenacao" onchange="renderOrdens()" title="Ordenar lista">
+          <option value="recente">Mais recentes</option>
+          <option value="num_desc">Nº ordem (maior → menor)</option>
+          <option value="num_asc">Nº ordem (menor → maior)</option>
+          <option value="valor_desc">Valor total (maior → menor)</option>
+          <option value="valor_asc">Valor total (menor → maior)</option>
+          <option value="data_desc">Data (mais nova → antiga)</option>
+          <option value="data_asc">Data (mais antiga → nova)</option>
+        </select>
         <button class="btn" onclick="carregarOrdens()">🔄 Atualizar</button>
         <button class="btn btn-primary" id="btn-nova-ordem" onclick="showPage('cadastro')">+ Nova</button>
       </div>
@@ -1860,6 +1869,14 @@ function renderOrdens(){
   const st=document.getElementById('filtro-status')?.value||''
   const cat=document.getElementById('filtro-cat')?.value||''
   let lista=ordens.filter(o=>{const v=o.veiculo||{},f=o.fornecedor||{};const txt=(v.placa+v.localidade+o.supervisor+f.razao_social+o.nota_fiscal+o.item+(o.num_ordem||'')+(o.observacao||'')).toLowerCase();return(!busca||txt.includes(busca))&&(!st||o.status===st)&&(!cat||o.categoria===cat)})
+  const ord=document.getElementById('filtro-ordenacao')?.value||'recente'
+  const numOrd=o=>{const m=String(o.num_ordem||'').match(/\d+/g);return m?parseInt(m.join('')):0}
+  if(ord==='num_desc')        lista.sort((a,b)=>numOrd(b)-numOrd(a))
+  else if(ord==='num_asc')    lista.sort((a,b)=>numOrd(a)-numOrd(b))
+  else if(ord==='valor_desc') lista.sort((a,b)=>Number(b.valor_total||0)-Number(a.valor_total||0))
+  else if(ord==='valor_asc')  lista.sort((a,b)=>Number(a.valor_total||0)-Number(b.valor_total||0))
+  else if(ord==='data_desc')  lista.sort((a,b)=>String(b.data_ordem||'').localeCompare(String(a.data_ordem||'')))
+  else if(ord==='data_asc')   lista.sort((a,b)=>String(a.data_ordem||'').localeCompare(String(b.data_ordem||'')))
   const tb=document.getElementById('ordens-table')
   if(!lista.length){tb.innerHTML='<tr><td colspan="17" class="empty">Nenhuma ordem encontrada.</td></tr>';return}
   const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
