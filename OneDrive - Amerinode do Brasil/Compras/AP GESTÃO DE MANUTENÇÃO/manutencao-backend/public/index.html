@@ -1570,7 +1570,7 @@ async function exportarDashboardPDF(){
     doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(13)
     doc.text('Dashboard — Manutenção Veicular', M, 11)
     doc.setFont('helvetica','normal'); doc.setFontSize(9)
-    doc.text(`Período: ${periodoLabel(currentPeriod)}   |   Gerado em ${stamp}`, M, 16)
+    doc.text(`Período: ${periodoLabel(currentPeriod)}   |   Placa: ${dashPlaca||'TODAS'}   |   Gerado em ${stamp}`, M, 16)
 
     // ── Cards de KPI ──────────────────────────────────────────
     let y=24
@@ -1701,7 +1701,8 @@ async function exportarDashboardPDF(){
     }
 
     const dt=new Date().toISOString().slice(0,10)
-    doc.save(`dashboard_manutencao_${currentPeriod}_${dt}.pdf`)
+    const sufPlaca=dashPlaca?`_${dashPlaca}`:''
+    doc.save(`dashboard_manutencao_${currentPeriod}${sufPlaca}_${dt}.pdf`)
   }catch(e){
     alert('Erro ao gerar PDF: '+e.message)
   }finally{
@@ -1725,6 +1726,7 @@ function exportarDashboardXLSX(){
     const resumoRows=[
       ['Dashboard de Manutenção Veicular'],
       [`Período: ${periodoLabel(currentPeriod)}`],
+      [`Placa: ${dashPlaca||'TODAS'}`],
       [`Gerado em: ${stamp}`],
       [],
       ['Indicador','Atual','Anterior','Δ %'],
@@ -1801,7 +1803,8 @@ function exportarDashboardXLSX(){
     XLSX.utils.book_append_sheet(wb,wsUlt,'Ultimas_ordens')
 
     const dt=new Date().toISOString().slice(0,10)
-    XLSX.writeFile(wb,`dashboard_manutencao_${currentPeriod}_${dt}.xlsx`)
+    const sufPlaca=dashPlaca?`_${dashPlaca}`:''
+    XLSX.writeFile(wb,`dashboard_manutencao_${currentPeriod}${sufPlaca}_${dt}.xlsx`)
   }catch(e){
     alert('Erro ao gerar XLSX: '+e.message)
   }finally{
