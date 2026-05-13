@@ -175,6 +175,27 @@ tr:hover td{background:#F9F9F9}
 .donut-legend .lg-dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle}
 .donut-legend .lg-val{color:#0C447C;font-weight:500;text-align:right;white-space:nowrap}
 .donut-legend .lg-pct{color:#888;text-align:right;white-space:nowrap}
+/* ── Análise de Gastos ───────────────────────────────────────── */
+.analise-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #E0E0E0;border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.analise-toolbar label{font-size:12px;color:#555;font-weight:500}
+.analise-toolbar select,.analise-toolbar input{padding:6px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px}
+.pivot-wrap{overflow-x:auto;background:#fff;border:1px solid #E0E0E0;border-radius:12px}
+.pivot-table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+.pivot-table th,.pivot-table td{padding:8px 10px;text-align:right;border-bottom:1px solid #F0F0F0;white-space:nowrap}
+.pivot-table th:first-child,.pivot-table td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;font-weight:500;color:#1E3A5F}
+.pivot-table thead th{background:#F5F8FB;color:#1E3A5F;font-weight:600;border-bottom:2px solid #DCE6F1;position:sticky;top:0}
+.pivot-table thead th:first-child{z-index:2}
+.pivot-table tbody tr:hover td{background:#FAFCFE}
+.pivot-table tbody tr:hover td:first-child{background:#FAFCFE}
+.pivot-table .pivot-zero{color:#CCC}
+.pivot-table .pivot-total{font-weight:600;color:#0C447C;background:#F0F4F9}
+.pivot-table tfoot td{background:#E6F1FB;color:#0C447C;font-weight:600;border-top:2px solid #B7D4F0}
+.pivot-table tfoot td:first-child{background:#E6F1FB}
+.pivot-cell-hot{background:linear-gradient(90deg,rgba(216,67,21,.06),rgba(216,67,21,.18))}
+.pivot-cell-mid{background:linear-gradient(90deg,rgba(245,127,23,.04),rgba(245,127,23,.12))}
+.pivot-cell-low{background:linear-gradient(90deg,rgba(46,125,50,.03),rgba(46,125,50,.08))}
+.click-row{cursor:pointer}
+.click-row:hover td{background:#EAF3FB!important}
 </style>
 </head>
 <body>
@@ -285,6 +306,7 @@ tr:hover td{background:#F9F9F9}
   <div class="nav-item" id="nav-importar" onclick="showPage('importar')">📥 Importar Excel</div>
   <div class="nav-item" onclick="showPage('revisoes')">🛡️ Próximas Revisões</div>
   <div class="nav-item" onclick="showPage('relatorios')">📑 Relatórios</div>
+  <div class="nav-item" onclick="showPage('analise')">💰 Análise de Gastos</div>
   <div class="nav-item" onclick="showPage('manutencao')">🔧 Em Manutenção</div>
   <div class="nav-sep"></div>
   <div class="nav-item" id="nav-usuarios" onclick="showPage('usuarios')">👥 Usuários</div>
@@ -551,6 +573,80 @@ tr:hover td{background:#F9F9F9}
             <th>Categoria</th><th>Item</th><th>Qtd</th><th>Valor</th><th>Total</th><th>Status</th><th>Fornecedor</th><th>Obs.</th>
           </tr></thead>
           <tbody id="rel-table"><tr><td colspan="12" class="empty">Aplique filtros e clique em "Gerar relatório".</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ANÁLISE DE GASTOS -->
+    <div id="page-analise" class="page">
+      <div class="analise-toolbar">
+        <label>Ano:</label>
+        <select id="an-ano" onchange="carregarAnalise()"></select>
+        <label>Placa:</label>
+        <input type="text" id="an-placa" list="an-placa-opts" placeholder="Todas" oninput="aplicarFiltroAnalisePlaca(this.value)" style="width:140px;text-transform:uppercase">
+        <datalist id="an-placa-opts"></datalist>
+        <button class="btn" onclick="limparFiltroAnalisePlaca()" title="Limpar placa" style="padding:4px 10px">✕</button>
+        <label>Categoria:</label>
+        <select id="an-categoria" onchange="renderAnalise()">
+          <option value="">Todas</option>
+          <option value="Serviço">Serviço</option>
+          <option value="Produto">Produto</option>
+        </select>
+        <div style="flex:1"></div>
+        <button class="btn" onclick="carregarAnalise()">🔄 Atualizar</button>
+        <button class="btn" onclick="exportarAnaliseXLSX()">⬇ XLSX</button>
+        <button class="btn" onclick="exportarAnalisePDF()">⬇ PDF</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Gasto total no ano</div><div class="stat-value" id="an-stat-valor">-</div><div class="stat-sub" id="an-stat-valor-sub">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total de ordens</div><div class="stat-value" id="an-stat-ordens">-</div><div class="stat-sub" id="an-stat-ordens-sub">—</div></div>
+        <div class="stat-card"><div class="stat-label">Placas com gasto</div><div class="stat-value" id="an-stat-placas">-</div><div class="stat-sub">veículos ativos no período</div></div>
+        <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-value" id="an-stat-ticket">-</div><div class="stat-sub">por ordem</div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-toolbar">
+          <h4>📈 Gasto mensal — visão geral do ano</h4>
+          <div style="font-size:11px;color:#888" id="an-chart-info">—</div>
+        </div>
+        <div class="chart-wrap"><canvas id="an-chart-mensal"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <span class="card-title">📋 Gasto por placa × mês <span style="font-weight:400;color:#888;font-size:12px" id="an-pivot-info"></span></span>
+          <span style="font-size:11px;color:#888">Clique numa placa para ver os itens</span>
+        </div>
+        <div class="pivot-wrap">
+          <table class="pivot-table" id="an-pivot">
+            <thead><tr><th>Placa</th></tr></thead>
+            <tbody><tr><td colspan="14" class="loading"><span class="spinner"></span>Carregando dados...</td></tr></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="analytics-grid">
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">🔧</span> Top 15 — Itens com maior gasto</span></h4>
+          <div class="rank-list" id="an-rank-itens"><div class="rank-empty">Carregando...</div></div>
+        </div>
+        <div class="rank-card">
+          <h4><span><span class="rank-icon">🚗</span> Top 15 — Placas com maior gasto</span></h4>
+          <div class="rank-list" id="an-rank-placas"><div class="rank-empty">Carregando...</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <span class="card-title">🔎 Detalhe por placa <span style="font-weight:400;color:#888;font-size:12px" id="an-detalhe-placa">— selecione uma placa na tabela acima</span></span>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Item</th><th>Categoria</th><th>Qtd ordens</th><th>Quantidade total</th><th>Gasto total</th><th>% do total</th>
+          </tr></thead>
+          <tbody id="an-detalhe-table"><tr><td colspan="6" class="empty">Selecione uma placa para ver o detalhamento dos itens.</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -1088,15 +1184,16 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   document.getElementById('page-'+id).classList.add('active')
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'))
-  const titles={dashboard:'Dashboard',ordens:'Ordens de Compra',cadastro:'Novo Cadastro',importar:'Importar Excel',revisoes:'Próximas Revisões',relatorios:'Relatórios',manutencao:'Controle em Manutenção',usuarios:'Gerenciar Usuários'}
+  const titles={dashboard:'Dashboard',ordens:'Ordens de Compra',cadastro:'Novo Cadastro',importar:'Importar Excel',revisoes:'Próximas Revisões',relatorios:'Relatórios',analise:'Análise de Gastos',manutencao:'Controle em Manutenção',usuarios:'Gerenciar Usuários'}
   document.getElementById('page-title').textContent=titles[id]||''
-  const navs=['dashboard','ordens','cadastro','importar','revisoes','relatorios','manutencao']
+  const navs=['dashboard','ordens','cadastro','importar','revisoes','relatorios','analise','manutencao']
   navs.forEach((n,i)=>{if(n===id)document.querySelectorAll('.nav-item')[i]?.classList.add('active')})
   if(id==='dashboard') carregarDashboard()
   if(id==='ordens') carregarOrdens()
   if(id==='revisoes') carregarRevisoes()
   if(id==='usuarios') carregarUsuarios()
   if(id==='relatorios') document.getElementById('rel-placa').focus()
+  if(id==='analise') carregarAnalise()
   if(id==='manutencao') carregarManutencao()
 }
 
@@ -1934,6 +2031,438 @@ function exportarRelatorioPDF(){
 
   const dt=new Date().toISOString().slice(0,10)
   doc.save(`relatorio_manutencao_${dt}.pdf`)
+}
+
+// ── ANÁLISE DE GASTOS ────────────────────────────────────────
+const MESES_BR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+let analiseRaw = []          // ordens carregadas (raw, ano selecionado)
+let analiseFiltrada = []     // após filtro categoria/placa
+let analiseAnoAtual = null
+let analisePlaca = ''
+let analisePlacaTimer = null
+let analiseChartObj = null
+let analisePlacaSelecionada = null
+
+function fmtMoedaCurto(v){
+  v = Number(v||0)
+  if(v >= 1000000) return 'R$ '+(v/1000000).toFixed(1).replace('.',',')+'M'
+  if(v >= 1000)    return 'R$ '+(v/1000).toFixed(1).replace('.',',')+'k'
+  return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0})
+}
+
+function popularAnoSelector(){
+  const sel = document.getElementById('an-ano')
+  if(sel.options.length) return
+  const ano = new Date().getFullYear()
+  for(let y=ano; y>=ano-5; y--){
+    const o=document.createElement('option')
+    o.value=y; o.textContent=y
+    sel.appendChild(o)
+  }
+}
+
+function aplicarFiltroAnalisePlaca(v){
+  clearTimeout(analisePlacaTimer)
+  analisePlacaTimer = setTimeout(()=>{
+    analisePlaca = (v||'').toUpperCase().trim()
+    renderAnalise()
+  }, 300)
+}
+function limparFiltroAnalisePlaca(){
+  document.getElementById('an-placa').value=''
+  analisePlaca=''
+  renderAnalise()
+}
+
+async function popularPlacasAnalise(){
+  try{
+    const r = await fetch(`${API_URL}/api/veiculos`)
+    const veiculos = await r.json()
+    const dl = document.getElementById('an-placa-opts')
+    dl.innerHTML = (veiculos||[]).map(v=>`<option value="${v.placa}">`).join('')
+  }catch(e){}
+}
+
+async function carregarAnalise(){
+  popularAnoSelector()
+  await popularPlacasAnalise()
+  const ano = parseInt(document.getElementById('an-ano').value) || new Date().getFullYear()
+  analiseAnoAtual = ano
+  const di = `${ano}-01-01`, df = `${ano}-12-31`
+
+  const tb = document.querySelector('#an-pivot tbody')
+  tb.innerHTML = `<tr><td colspan="14" class="loading"><span class="spinner"></span>Carregando dados de ${ano}...</td></tr>`
+
+  try{
+    const r = await fetch(`${API_URL}/api/ordens?limit=10000&data_inicio=${di}&data_fim=${df}`)
+    const j = await r.json()
+    analiseRaw = (j.data||[]).filter(o => o.veiculo?.placa)
+    renderAnalise()
+  }catch(e){
+    tb.innerHTML = `<tr><td colspan="14" class="empty" style="color:#a00">Erro ao carregar: ${e.message}</td></tr>`
+  }
+}
+
+function renderAnalise(){
+  const cat = document.getElementById('an-categoria').value
+  const placaFiltro = analisePlaca
+
+  analiseFiltrada = analiseRaw.filter(o => {
+    if(cat && o.categoria !== cat) return false
+    if(placaFiltro && !(o.veiculo?.placa||'').toUpperCase().includes(placaFiltro)) return false
+    return true
+  })
+
+  // KPIs
+  const total = analiseFiltrada.reduce((s,o)=>s+Number(o.valor_total||0),0)
+  const qtd   = analiseFiltrada.length
+  const placas = new Set(analiseFiltrada.map(o=>o.veiculo?.placa).filter(Boolean))
+  const ticket = qtd ? total/qtd : 0
+  document.getElementById('an-stat-valor').textContent  = fmtMoeda(total)
+  document.getElementById('an-stat-valor-sub').textContent = `ano ${analiseAnoAtual}${cat?' · '+cat:''}${placaFiltro?' · '+placaFiltro:''}`
+  document.getElementById('an-stat-ordens').textContent = qtd.toLocaleString('pt-BR')
+  document.getElementById('an-stat-ordens-sub').textContent = `${placas.size} placa(s) ativa(s)`
+  document.getElementById('an-stat-placas').textContent = placas.size.toLocaleString('pt-BR')
+  document.getElementById('an-stat-ticket').textContent = fmtMoeda(ticket)
+
+  renderPivotPlacaMes()
+  renderRankings()
+  renderChartMensal()
+  // mantém detalhe da placa, se selecionada e ainda existir
+  if(analisePlacaSelecionada && placas.has(analisePlacaSelecionada)){
+    renderDetalhePlaca(analisePlacaSelecionada)
+  }else{
+    analisePlacaSelecionada = null
+    document.getElementById('an-detalhe-placa').textContent = '— selecione uma placa na tabela acima'
+    document.getElementById('an-detalhe-table').innerHTML = '<tr><td colspan="6" class="empty">Selecione uma placa para ver o detalhamento dos itens.</td></tr>'
+  }
+}
+
+function renderPivotPlacaMes(){
+  const table = document.getElementById('an-pivot')
+  // Agrupa: placa → array[12] de totais
+  const map = new Map() // placa → {meses:[12], total, loc}
+  for(const o of analiseFiltrada){
+    const placa = o.veiculo?.placa; if(!placa) continue
+    const d = (o.data_ordem||'').substring(0,10)
+    if(!d) continue
+    const m = parseInt(d.substring(5,7))-1
+    if(m<0||m>11) continue
+    let cur = map.get(placa)
+    if(!cur){ cur = {meses:Array(12).fill(0), total:0, qtd:0, loc:o.veiculo?.localidade||''}; map.set(placa,cur) }
+    const v = Number(o.valor_total||0)
+    cur.meses[m] += v
+    cur.total    += v
+    cur.qtd      += 1
+  }
+  const linhas = [...map.entries()]
+    .map(([placa,v])=>({placa, ...v}))
+    .sort((a,b)=>b.total-a.total)
+
+  // calcula maior valor por mês para colorir hot/mid/low
+  const maxPorMes = Array(12).fill(0)
+  for(const l of linhas) for(let i=0;i<12;i++) if(l.meses[i]>maxPorMes[i]) maxPorMes[i]=l.meses[i]
+  const totaisPorMes = Array(12).fill(0)
+  for(const l of linhas) for(let i=0;i<12;i++) totaisPorMes[i]+=l.meses[i]
+  const totalGeral = linhas.reduce((s,l)=>s+l.total,0)
+
+  // header
+  let head = '<tr><th>Placa</th>'
+  for(let i=0;i<12;i++) head += `<th>${MESES_BR[i]}</th>`
+  head += '<th class="pivot-total">Total</th><th>Ordens</th></tr>'
+  table.querySelector('thead').innerHTML = head
+
+  // body
+  if(!linhas.length){
+    table.querySelector('tbody').innerHTML = `<tr><td colspan="15" class="empty">Sem dados para os filtros selecionados.</td></tr>`
+    table.querySelector('tfoot').innerHTML = ''
+    document.getElementById('an-pivot-info').textContent = ''
+    return
+  }
+  document.getElementById('an-pivot-info').textContent = `— ${linhas.length} placa(s)`
+
+  table.querySelector('tbody').innerHTML = linhas.map(l=>{
+    let cells = ''
+    for(let i=0;i<12;i++){
+      const v = l.meses[i]
+      const max = maxPorMes[i] || 1
+      let cls = 'pivot-zero'
+      let txt = '—'
+      if(v > 0){
+        const ratio = v/max
+        cls = ratio > .66 ? 'pivot-cell-hot' : ratio > .33 ? 'pivot-cell-mid' : 'pivot-cell-low'
+        txt = fmtMoedaCurto(v)
+      }
+      cells += `<td class="${cls}" title="${fmtMoeda(v)}">${txt}</td>`
+    }
+    const loc = l.loc ? ` <span style="font-size:10px;color:#999">(${l.loc})</span>` : ''
+    return `<tr class="click-row" onclick="renderDetalhePlaca('${l.placa.replace(/'/g,"\\'")}')">
+      <td>${l.placa}${loc}</td>
+      ${cells}
+      <td class="pivot-total">${fmtMoeda(l.total)}</td>
+      <td>${l.qtd}</td>
+    </tr>`
+  }).join('')
+
+  // footer total por mês
+  let foot = '<tr><td>TOTAL GERAL</td>'
+  for(let i=0;i<12;i++) foot += `<td>${totaisPorMes[i]>0?fmtMoedaCurto(totaisPorMes[i]):'—'}</td>`
+  foot += `<td>${fmtMoeda(totalGeral)}</td><td>${analiseFiltrada.length}</td></tr>`
+  table.querySelector('tfoot').innerHTML = foot
+}
+
+function renderRankings(){
+  const totalGeral = analiseFiltrada.reduce((s,o)=>s+Number(o.valor_total||0),0) || 1
+
+  // Itens
+  const mItens = new Map()
+  for(const o of analiseFiltrada){
+    const k = (o.item||'').trim() || '(sem descrição)'
+    const cur = mItens.get(k) || {total:0,qtd:0}
+    cur.total += Number(o.valor_total||0); cur.qtd += 1
+    mItens.set(k,cur)
+  }
+  const itensTop = [...mItens.entries()].map(([l,v])=>({label:l,total:v.total,qtd:v.qtd}))
+    .sort((a,b)=>b.total-a.total).slice(0,15)
+  const elI = document.getElementById('an-rank-itens')
+  if(!itensTop.length){ elI.innerHTML = '<div class="rank-empty">Sem dados</div>' }
+  else{
+    const max = itensTop[0].total || 1
+    elI.innerHTML = itensTop.map((r,i)=>{
+      const pct = (r.total/totalGeral*100).toFixed(1)
+      const w = (r.total/max*100).toFixed(1)
+      const posCls = i===0?'top1':i===1?'top2':i===2?'top3':''
+      return `<div class="rank-row"><span class="rank-pos ${posCls}">${i+1}</span>
+        <span class="rank-label" title="${r.label}">${r.label}</span>
+        <span class="rank-val">${fmtMoeda(r.total)} <span style="color:#888">(${pct}% · ${r.qtd}x)</span></span>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${w}%"></div></div></div>`
+    }).join('')
+  }
+
+  // Placas
+  const mP = new Map()
+  for(const o of analiseFiltrada){
+    const k = o.veiculo?.placa; if(!k) continue
+    const cur = mP.get(k) || {total:0,qtd:0}
+    cur.total += Number(o.valor_total||0); cur.qtd += 1
+    mP.set(k,cur)
+  }
+  const placasTop = [...mP.entries()].map(([l,v])=>({label:l,total:v.total,qtd:v.qtd}))
+    .sort((a,b)=>b.total-a.total).slice(0,15)
+  const elP = document.getElementById('an-rank-placas')
+  if(!placasTop.length){ elP.innerHTML = '<div class="rank-empty">Sem dados</div>' }
+  else{
+    const max = placasTop[0].total || 1
+    elP.innerHTML = placasTop.map((r,i)=>{
+      const pct = (r.total/totalGeral*100).toFixed(1)
+      const w = (r.total/max*100).toFixed(1)
+      const posCls = i===0?'top1':i===1?'top2':i===2?'top3':''
+      return `<div class="rank-row" style="cursor:pointer" onclick="renderDetalhePlaca('${r.label.replace(/'/g,"\\'")}')"><span class="rank-pos ${posCls}">${i+1}</span>
+        <span class="rank-label">${r.label}</span>
+        <span class="rank-val">${fmtMoeda(r.total)} <span style="color:#888">(${pct}% · ${r.qtd}x)</span></span>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${w}%"></div></div></div>`
+    }).join('')
+  }
+}
+
+function renderChartMensal(){
+  const totaisMes = Array(12).fill(0)
+  const servicoMes = Array(12).fill(0)
+  const produtoMes = Array(12).fill(0)
+  for(const o of analiseFiltrada){
+    const m = parseInt((o.data_ordem||'').substring(5,7))-1
+    if(m<0||m>11) continue
+    const v = Number(o.valor_total||0)
+    totaisMes[m]+=v
+    if(o.categoria==='Serviço') servicoMes[m]+=v
+    else if(o.categoria==='Produto') produtoMes[m]+=v
+  }
+  const ctx = document.getElementById('an-chart-mensal')
+  if(analiseChartObj) analiseChartObj.destroy()
+  analiseChartObj = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: MESES_BR,
+      datasets:[
+        {label:'Serviço', data:servicoMes, backgroundColor:'#7B5EA7', borderRadius:4, stack:'g'},
+        {label:'Produto', data:produtoMes, backgroundColor:'#378ADD', borderRadius:4, stack:'g'}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11}}},
+        tooltip:{callbacks:{
+          label:(c)=>`${c.dataset.label}: ${fmtMoeda(c.parsed.y)}`,
+          footer:(items)=>'Total mês: '+fmtMoeda(items.reduce((s,i)=>s+i.parsed.y,0))
+        }}
+      },
+      scales:{
+        x:{stacked:true,grid:{display:false}},
+        y:{stacked:true,ticks:{callback:(v)=>fmtMoedaCurto(v),font:{size:10}}}
+      }
+    }
+  })
+  const totalAno = totaisMes.reduce((s,v)=>s+v,0)
+  const mediaMes = totalAno/12
+  document.getElementById('an-chart-info').textContent = `média mensal: ${fmtMoeda(mediaMes)}`
+}
+
+function renderDetalhePlaca(placa){
+  analisePlacaSelecionada = placa
+  document.getElementById('an-detalhe-placa').textContent = `— ${placa}`
+  const ord = analiseFiltrada.filter(o => o.veiculo?.placa === placa)
+  const total = ord.reduce((s,o)=>s+Number(o.valor_total||0),0) || 1
+  const map = new Map()
+  for(const o of ord){
+    const k = (o.item||'').trim() || '(sem descrição)'
+    const cur = map.get(k) || {total:0,qtd:0,quant:0,cat:o.categoria||'-'}
+    cur.total += Number(o.valor_total||0)
+    cur.qtd   += 1
+    cur.quant += Number(o.quantidade||1)
+    map.set(k,cur)
+  }
+  const linhas = [...map.entries()].map(([item,v])=>({item,...v}))
+    .sort((a,b)=>b.total-a.total)
+  const tb = document.getElementById('an-detalhe-table')
+  if(!linhas.length){ tb.innerHTML = '<tr><td colspan="6" class="empty">Sem itens para esta placa.</td></tr>'; return }
+  tb.innerHTML = linhas.map(l=>`<tr>
+    <td>${l.item}</td>
+    <td>${catBadge(l.cat)}</td>
+    <td>${l.qtd}</td>
+    <td>${l.quant}</td>
+    <td>${fmtMoeda(l.total)}</td>
+    <td>${(l.total/total*100).toFixed(1)}%</td>
+  </tr>`).join('') + `<tr style="background:#F0F4F9;font-weight:600;color:#0C447C">
+    <td>TOTAL ${placa}</td><td>—</td>
+    <td>${ord.length}</td>
+    <td>${linhas.reduce((s,l)=>s+l.quant,0)}</td>
+    <td>${fmtMoeda(total)}</td><td>100%</td>
+  </tr>`
+}
+
+function exportarAnaliseXLSX(){
+  if(!analiseFiltrada.length){ alert('Sem dados para exportar.'); return }
+  const wb = XLSX.utils.book_new()
+
+  // Aba 1: Pivot placa × mês
+  const pivot = new Map()
+  for(const o of analiseFiltrada){
+    const placa = o.veiculo?.placa; if(!placa) continue
+    const m = parseInt((o.data_ordem||'').substring(5,7))-1; if(m<0||m>11) continue
+    let cur = pivot.get(placa); if(!cur){cur=Array(13).fill(0); pivot.set(placa,cur)}
+    const v=Number(o.valor_total||0); cur[m]+=v; cur[12]+=v
+  }
+  const linhas = [...pivot.entries()].sort((a,b)=>b[1][12]-a[1][12])
+  const headers = ['Placa', ...MESES_BR, 'Total Ano']
+  const rows = linhas.map(([p,arr])=>[p, ...arr])
+  const totRow = ['TOTAL', ...Array(13).fill(0)]
+  for(const [,arr] of linhas) for(let i=0;i<13;i++) totRow[i+1]+=arr[i]
+  const aoa = [headers, ...rows, totRow]
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa)
+  ws1['!cols'] = [{wch:14},...Array(12).fill({wch:13}),{wch:16}]
+  XLSX.utils.book_append_sheet(wb, ws1, 'Placa x Mes')
+
+  // Aba 2: Por item
+  const itens = new Map()
+  for(const o of analiseFiltrada){
+    const k = (o.item||'').trim() || '(sem descrição)'
+    const cur = itens.get(k) || {total:0,qtd:0,cat:o.categoria||'-'}
+    cur.total += Number(o.valor_total||0); cur.qtd += 1
+    itens.set(k,cur)
+  }
+  const totalGeral = analiseFiltrada.reduce((s,o)=>s+Number(o.valor_total||0),0) || 1
+  const itensRows = [...itens.entries()].sort((a,b)=>b[1].total-a[1].total)
+    .map(([item,v])=>({Item:item,Categoria:v.cat,'Qtd Ordens':v.qtd,'Gasto Total':v.total,'% do total':Number((v.total/totalGeral*100).toFixed(2))}))
+  const ws2 = XLSX.utils.json_to_sheet(itensRows)
+  ws2['!cols'] = [{wch:40},{wch:12},{wch:12},{wch:14},{wch:12}]
+  XLSX.utils.book_append_sheet(wb, ws2, 'Por Item')
+
+  // Aba 3: Detalhamento completo
+  const det = analiseFiltrada.map(o=>({
+    'Data':fmtData(o.data_ordem),
+    'Placa':o.veiculo?.placa||'',
+    'Localidade':o.veiculo?.localidade||'',
+    'Categoria':o.categoria||'',
+    'Item':o.item||'',
+    'Qtd':o.quantidade||1,
+    'Valor unit.':Number(o.valor_item||0),
+    'Valor total':Number(o.valor_total||0),
+    'Status':o.status||'',
+    'Fornecedor':o.fornecedor?.razao_social||''
+  }))
+  const ws3 = XLSX.utils.json_to_sheet(det)
+  XLSX.utils.book_append_sheet(wb, ws3, 'Detalhamento')
+
+  XLSX.writeFile(wb, `analise_gastos_${analiseAnoAtual}.xlsx`)
+}
+
+function exportarAnalisePDF(){
+  if(!analiseFiltrada.length){ alert('Sem dados para exportar.'); return }
+  const {jsPDF} = window.jspdf
+  const doc = new jsPDF({orientation:'landscape',unit:'mm',format:'a4'})
+  const stamp = new Date().toLocaleString('pt-BR')
+
+  doc.setFontSize(14); doc.text(`Análise de Gastos — ${analiseAnoAtual}`,14,14)
+  doc.setFontSize(9); doc.setTextColor(100)
+  const cat = document.getElementById('an-categoria').value
+  const filtros = []
+  if(cat) filtros.push(`Categoria: ${cat}`)
+  if(analisePlaca) filtros.push(`Placa: ${analisePlaca}`)
+  doc.text(filtros.length?'Filtros: '+filtros.join(' | '):'Filtros: (nenhum)',14,20)
+  doc.text(`Gerado em ${stamp}`,14,25)
+
+  // KPIs
+  const total = analiseFiltrada.reduce((s,o)=>s+Number(o.valor_total||0),0)
+  const placas = new Set(analiseFiltrada.map(o=>o.veiculo?.placa).filter(Boolean))
+  doc.setFontSize(10); doc.setTextColor(20)
+  doc.text(`Total: ${fmtMoeda(total)}  |  Ordens: ${analiseFiltrada.length}  |  Placas: ${placas.size}  |  Ticket médio: ${fmtMoeda(total/analiseFiltrada.length)}`,14,32)
+
+  // Pivot
+  const pivot = new Map()
+  for(const o of analiseFiltrada){
+    const p = o.veiculo?.placa; if(!p) continue
+    const m = parseInt((o.data_ordem||'').substring(5,7))-1; if(m<0||m>11) continue
+    let cur = pivot.get(p); if(!cur){cur=Array(13).fill(0); pivot.set(p,cur)}
+    cur[m]+=Number(o.valor_total||0); cur[12]+=Number(o.valor_total||0)
+  }
+  const head = [['Placa', ...MESES_BR, 'Total']]
+  const body = [...pivot.entries()].sort((a,b)=>b[1][12]-a[1][12])
+    .map(([p,arr])=>[p, ...arr.map(v=>v>0?fmtMoedaCurto(v):'—')])
+  const totRow = ['TOTAL', ...Array(13).fill(0)]
+  for(const [,arr] of pivot) for(let i=0;i<13;i++) totRow[i+1]+=arr[i]
+  const foot = [[totRow[0], ...totRow.slice(1).map(v=>fmtMoedaCurto(v))]]
+
+  doc.autoTable({
+    head, body, foot, startY:38,
+    styles:{fontSize:7,cellPadding:1.5,halign:'right'},
+    columnStyles:{0:{halign:'left',fontStyle:'bold'}},
+    headStyles:{fillColor:[30,58,95],textColor:255,fontSize:7.5,halign:'center'},
+    footStyles:{fillColor:[230,241,251],textColor:[12,68,124],fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[245,248,251]}
+  })
+
+  // Top itens (nova página)
+  doc.addPage('landscape')
+  doc.setFontSize(13); doc.setTextColor(20); doc.text('Top 20 — Itens com maior gasto',14,14)
+  const mItens = new Map()
+  for(const o of analiseFiltrada){
+    const k = (o.item||'').trim() || '(sem descrição)'
+    const cur = mItens.get(k) || {total:0,qtd:0,cat:o.categoria||'-'}
+    cur.total += Number(o.valor_total||0); cur.qtd += 1
+    mItens.set(k,cur)
+  }
+  const itensTop = [...mItens.entries()].sort((a,b)=>b[1].total-a[1].total).slice(0,20)
+  doc.autoTable({
+    head:[['#','Item','Categoria','Ordens','Gasto total','% do total']],
+    body: itensTop.map(([item,v],i)=>[i+1,item,v.cat,v.qtd,fmtMoeda(v.total),(v.total/total*100).toFixed(1)+'%']),
+    startY:20,
+    styles:{fontSize:8,cellPadding:2},
+    headStyles:{fillColor:[30,58,95],textColor:255},
+    alternateRowStyles:{fillColor:[245,248,251]}
+  })
+
+  doc.save(`analise_gastos_${analiseAnoAtual}.pdf`)
 }
 
 // ── REVISÕES ──────────────────────────────────────────────────
