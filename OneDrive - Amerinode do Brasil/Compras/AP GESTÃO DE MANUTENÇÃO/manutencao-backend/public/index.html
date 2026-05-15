@@ -1860,9 +1860,26 @@ document.addEventListener('click',(ev)=>{
 
 // ── ORDENS ────────────────────────────────────────────────────
 async function carregarOrdens(){
-  document.getElementById('ordens-table').innerHTML='<tr><td colspan="17" class="loading"><span class="spinner"></span>Carregando...</td></tr>'
-  try{const data=await apiCall('/api/ordens?limit=200');ordens=data.data||[];renderOrdens()}
-  catch(e){document.getElementById('ordens-table').innerHTML=`<tr><td colspan="17" class="empty">Erro: ${e.message}</td></tr>`}
+  const tb=document.getElementById('ordens-table')
+  tb.innerHTML='<tr><td colspan="17" class="loading"><span class="spinner"></span>Carregando todas as ordens...</td></tr>'
+  try{
+    // Paginação: Supabase limita a ~1000 por chamada, então buscamos em lotes
+    const PAGE=1000
+    let pagina=1, todas=[]
+    while(true){
+      const data=await apiCall(`/api/ordens?page=${pagina}&limit=${PAGE}`)
+      const lote=data.data||[]
+      todas=todas.concat(lote)
+      tb.innerHTML=`<tr><td colspan="17" class="loading"><span class="spinner"></span>Carregando... (${todas.length} ordens)</td></tr>`
+      if(lote.length<PAGE) break
+      if(pagina>=30) break // segurança: até 30.000 ordens
+      pagina++
+    }
+    ordens=todas
+    renderOrdens()
+  }catch(e){
+    tb.innerHTML=`<tr><td colspan="17" class="empty">Erro: ${e.message}</td></tr>`
+  }
 }
 
 function renderOrdens(){
