@@ -138,7 +138,15 @@ export class OmieClient {
       totalPaginas = data.total_de_paginas ?? 1
       const registros = data.conta_pagar_cadastro ?? []
       const ctes = registros.filter((r: any) => r.codigo_tipo_documento === 'CTE')
-      todos.push(...ctes.map((r: any) => this.mapContaPagarToCte(r)))
+
+      // Buscar fornecedores únicos desta página (com cache)
+      const codigosUnicos = [...new Set(ctes.map((r: any) => r.codigo_cliente_fornecedor).filter(Boolean))] as number[]
+      await Promise.all(codigosUnicos.map((cod: number) => this.buscarFornecedor(cod)))
+
+      todos.push(...ctes.map((r: any) => {
+        const forn = r.codigo_cliente_fornecedor ? this.fornecedorCache.get(r.codigo_cliente_fornecedor) : undefined
+        return this.mapContaPagarToCte(r, forn)
+      }))
 
       onProgress?.(pagina, totalPaginas)
       pagina++
@@ -153,21 +161,48 @@ export class OmieClient {
   }
 
   // ----------------------------------------------------------
+  // Cache de fornecedores (codigo_omie → { nome, cnpj })
+  // Evita chamadas repetidas à API para o mesmo fornecedor
+  // ----------------------------------------------------------
+  private fornecedorCache = new Map<number, { nome: string; cnpj: string }>()
+
+  async buscarFornecedor(codigoOmie: number): Promise<{ nome: string; cnpj: string }> {
+    if (this.fornecedorCache.has(codigoOmie)) {
+      return this.fornecedorCache.get(codigoOmie)!
+    }
+    try {
+      const data = await this.call<any>(
+        '/geral/clientes/',
+        'ConsultarCliente',
+        { codigo_cliente_omie: codigoOmie }
+      )
+      const result = {
+        nome: data.razao_social ?? data.nome_fantasia ?? '',
+        cnpj: data.cnpj_cpf ?? '',
+      }
+      this.fornecedorCache.set(codigoOmie, result)
+      return result
+    } catch {
+      return { nome: '', cnpj: '' }
+    }
+  }
+
+  // ----------------------------------------------------------
   // Mapear Conta a Pagar (CT-e) → formato interno OmieCte
   // ----------------------------------------------------------
-  private mapContaPagarToCte(raw: any): OmieCte {
+  private mapContaPagarToCte(raw: any, fornecedor?: { nome: string; cnpj: string }): OmieCte {
     return {
-      nCodCte: Number(raw.codigo_lancamento_omie ?? 0),
+      nCodCte:          Number(raw.codigo_lancamento_omie ?? 0),
       cNumCte:          raw.numero_documento_fiscal ?? raw.numero_documento ?? '',
       cChaveCte:        raw.chave_nfe ?? '',
       cNumNF:           raw.numero_documento ?? '',
-      cTipoTomador:     '2', // Recebedor (padrão para AP)
-      cNomeRemetente:   '',
-      cCNPJRemetente:   '',
+      cTipoTomador:     '2',
+      cNomeRemetente:   fornecedor?.nome ?? '',
+      cCNPJRemetente:   fornecedor?.cnpj ?? '',
       cNomeDestinatario:'',
       cCNPJDestinatario:'',
-      cNomeTomador:     '',
-      cCNPJTomador:     raw.codigo_cliente_fornecedor ? String(raw.codigo_cliente_fornecedor) : '',
+      cNomeTomador:     fornecedor?.nome ?? '',
+      cCNPJTomador:     fornecedor?.cnpj ?? '',
       cUFDestino:       '',
       cUFOrigem:        '',
       cModalTransp:     'R',
@@ -177,9 +212,7 @@ export class OmieClient {
       nPesoCubado:      0,
       nPesoTaxado:      0,
       cLinkNFe:         '',
-      cStatus:          STATUS_MAP[raw.status_titulo] ? 
-                        (Object.keys(STATUS_MAP).find(k => STATUS_MAP[k] === STATUS_MAP[raw.status_titulo]) ?? 'P') 
-                        : 'P',
+      cStatus:          STATUS_MAP[raw.status_titulo] ?? 'P',
       dDtEmissao:       raw.data_emissao ?? '',
       cCodCentroCusto:  raw.distribuicao?.[0]?.cCodDep ?? '',
     }
