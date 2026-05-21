@@ -1,1 +1,9 @@
-﻿import{NextResponse}from"next/server;const B=https://app.omie.com.br/api/v1;async function c(e,n,p){const r=await fetch(B+e,{method:POST,headers:{Content-Type:application/json},body:JSON.stringify({app_key:process.env.OMIE_APP_KEY,app_secret:process.env.OMIE_APP_SECRET,call:n,param:[p]})});return{status:r.status,data:await r.json()}};export const maxDuration=30;export async function GET(){const x={};try{x.forn=await c(/geral/fornecedores/,ListarFornecedores,{pagina:1,registros_por_pagina:2,apenas_importado_api:N})}catch(e){x.forn={err:e.message}};try{x.cli=await c(/geral/clientes/,ListarClientes,{pagina:1,registros_por_pagina:2,apenas_importado_api:N})}catch(e){x.cli={err:e.message}};try{const r=await c(/financas/contapagar/,ListarContasPagar,{pagina:1,registros_por_pagina:5,apenas_importado_api:N});const ctes=(r.data?.conta_pagar_cadastro??[]).filter((i)=>i.codigo_tipo_documento===CTE);x.cte_campos=ctes[0]?Object.keys(ctes[0]):[];x.cte_raw=ctes[0]??null}catch(e){x.cp={err:e.message}};return NextResponse.json(x)}
+import{NextResponse}from'next/server'
+const B='https://app.omie.com.br/api/v1'
+async function c(e,n,p){const r=await fetch(B+e,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app_key:process.env.OMIE_APP_KEY,app_secret:process.env.OMIE_APP_SECRET,call:n,param:[p]})});return{status:r.status,data:await r.json()}}
+export const maxDuration=30
+export async function GET(){const x={}
+try{x.forn=await c('/geral/fornecedores/','ListarFornecedores',{pagina:1,registros_por_pagina:2,apenas_importado_api:'N'})}catch(e){x.forn={err:e.message}}
+try{x.cli=await c('/geral/clientes/','ListarClientes',{pagina:1,registros_por_pagina:2,apenas_importado_api:'N'})}catch(e){x.cli={err:e.message}}
+try{const r=await c('/financas/contapagar/','ListarContasPagar',{pagina:1,registros_por_pagina:5,apenas_importado_api:'N'});const ct=(r.data?.conta_pagar_cadastro??[]).filter(i=>i.codigo_tipo_documento==='CTE');x.cte_campos=ct[0]?Object.keys(ct[0]):[];x.cte_raw=ct[0]??null}catch(e){x.cp={err:e.message}}
+return NextResponse.json(x)}
