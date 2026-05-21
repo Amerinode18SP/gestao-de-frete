@@ -1,0 +1,372 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+
+// ─── Tipos ───────────────────────────────────────────────────
+interface SyncStatus {
+  running: boolean
+  pagina: number
+  total: number
+  importados: number
+  atualizados: number
+  erro?: string
+  concluido: boolean
+}
+
+interface Resumo {
+  total: number
+  faturado: number
+  recebido: number
+  cancelado: number
+  pendente: number
+  valor_total: number
+}
+
+interface Cte {
+  id: string
+  numero_cte: string
+  remetente_nome: string
+  destinatario_nome: string
+  uf_origem: string
+  uf_destino: string
+  valor_servico: number
+  status: string
+  data_emissao: string
+  modal: string
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+const fmt = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  Faturado:  { bg: '#E8F5E9', color: '#2E7D32', label: 'Faturado' },
+  Recebido:  { bg: '#E3F2FD', color: '#1565C0', label: 'Recebido' },
+  Cancelado: { bg: '#FFEBEE', color: '#C62828', label: 'Cancelado' },
+  Pendente:  { bg: '#FFF8E1', color: '#E65100', label: 'Pendente' },
+}
+
+// ─── Componente Principal ─────────────────────────────────────
+export default function DashboardPage() {
+  const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
+
+  const [sync, setSync] = useState<SyncStatus>({
+    running: false, pagina: 0, total: 0,
+    importados: 0, atualizados: 0, concluido: false,
+  })
+  const [resumo, setResumo] = useState<Resumo | null>(null)
+  const [ctes, setCtes] = useState<Cte[]>([])
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('Todos')
+  const [carregando, setCarregando] = useState(true)
+
+  // Carregar dados iniciais
+  const carregarDados = useCallback(async () => {
+    setCarregando(true)
+    try {
+      const [resResumo, resCtes] = await Promise.all([
+        fetch(`/api/ctes/resumo?empresa_id=${EMPRESA_ID}`),
+        fetch(`/api/ctes?empresa_id=${EMPRESA_ID}&limit=100`),
+      ])
+      if (resResumo.ok) setResumo(await resResumo.json())
+      if (resCtes.ok) {
+        const data = await resCtes.json()
+        setCtes(data.ctes ?? [])
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    setCarregando(false)
+  }, [EMPRESA_ID])
+
+  useEffect(() => { carregarDados() }, [carregarDados])
+
+  // ── Sync em lotes ──────────────────────────────────────────
+  const iniciarSync = async () => {
+    setSync({ running: true, pagina: 1, total: 0, importados: 0, atualizados: 0, concluido: false })
+
+    let pagina = 1
+    let totalImportados = 0
+    let totalAtualizados = 0
+
+    try {
+      while (true) {
+        const res = await fetch('/api/omie/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
+          body: JSON.stringify({ empresa_id: EMPRESA_ID, pagina_inicio: pagina }),
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          setSync(s => ({ ...s, running: false, erro: err.error ?? 'Erro no servidor' }))
+          return
+        }
+
+        const data = await res.json()
+        totalImportados += data.importados ?? 0
+        totalAtualizados += data.atualizados ?? 0
+
+        setSync({
+          running: !!data.proxima_pagina,
+          pagina: data.proxima_pagina ?? pagina,
+          total: data.total_paginas ?? 0,
+          importados: totalImportados,
+          atualizados: totalAtualizados,
+          concluido: !data.proxima_pagina,
+        })
+
+        if (!data.proxima_pagina) break
+        pagina = data.proxima_pagina
+        await new Promise(r => setTimeout(r, 500))
+      }
+
+      await carregarDados()
+    } catch (e: any) {
+      setSync(s => ({ ...s, running: false, erro: e.message }))
+    }
+  }
+
+  // ── Filtros ────────────────────────────────────────────────
+  const ctesFiltradas = ctes.filter(c => {
+    const matchStatus = filtroStatus === 'Todos' || c.status === filtroStatus
+    const q = busca.toLowerCase()
+    const matchBusca = !q || (
+      c.numero_cte?.toLowerCase().includes(q) ||
+      c.remetente_nome?.toLowerCase().includes(q) ||
+      c.destinatario_nome?.toLowerCase().includes(q)
+    )
+    return matchStatus && matchBusca
+  })
+
+  // ── Progresso sync ────────────────────────────────────────
+  const progresso = sync.total > 0 ? Math.round((sync.pagina / sync.total) * 100) : 0
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#F0EEE8',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      color: '#1A1916',
+    }}>
+      {/* Header */}
+      <header style={{
+        background: '#1A1916',
+        padding: '0 32px',
+        height: '56px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '20px' }}>🚛</span>
+          <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>
+            Gestão de Frete
+          </span>
+        </div>
+        <button
+          onClick={iniciarSync}
+          disabled={sync.running}
+          style={{
+            background: sync.running ? '#333' : '#4CAF50',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '8px 18px',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: sync.running ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '7px',
+            transition: 'background 0.2s',
+          }}
+        >
+          {sync.running ? (
+            <>
+              <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+              Sincronizando... {sync.pagina}/{sync.total}
+            </>
+          ) : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
+        </button>
+      </header>
+
+      <main style={{ padding: '28px 32px', maxWidth: '1280px', margin: '0 auto' }}>
+
+        {/* Banner de progresso do sync */}
+        {(sync.running || sync.concluido || sync.erro) && (
+          <div style={{
+            background: sync.erro ? '#FFEBEE' : sync.concluido ? '#E8F5E9' : '#E3F2FD',
+            border: `1px solid ${sync.erro ? '#FFCDD2' : sync.concluido ? '#C8E6C9' : '#BBDEFB'}`,
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '24px',
+          }}>
+            {sync.erro ? (
+              <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {sync.erro}</p>
+            ) : sync.concluido ? (
+              <p style={{ margin: 0, color: '#2E7D32', fontSize: '14px' }}>
+                ✅ Sincronização concluída — <strong>{sync.importados} novos</strong>, {sync.atualizados} atualizados
+              </p>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', color: '#1565C0' }}>
+                    Buscando página {sync.pagina} de {sync.total || '?'} — {sync.importados} CTes importadas
+                  </span>
+                  <span style={{ fontSize: '13px', color: '#1565C0', fontWeight: '600' }}>{progresso}%</span>
+                </div>
+                <div style={{ background: '#BBDEFB', borderRadius: '99px', height: '6px' }}>
+                  <div style={{
+                    background: '#1976D2',
+                    width: `${progresso}%`,
+                    height: '100%',
+                    borderRadius: '99px',
+                    transition: 'width 0.4s ease',
+                  }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cards de resumo */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+          {[
+            { label: 'Total de CTes', valor: resumo?.total ?? '—', icon: '📦', cor: '#1A1916' },
+            { label: 'Valor Total', valor: resumo ? fmt(resumo.valor_total) : '—', icon: '💰', cor: '#2E7D32' },
+            { label: 'Faturadas', valor: resumo?.faturado ?? '—', icon: '🟢', cor: '#2E7D32' },
+            { label: 'Recebidas', valor: resumo?.recebido ?? '—', icon: '🔵', cor: '#1565C0' },
+            { label: 'Pendentes', valor: resumo?.pendente ?? '—', icon: '🟡', cor: '#E65100' },
+            { label: 'Canceladas', valor: resumo?.cancelado ?? '—', icon: '🔴', cor: '#C62828' },
+          ].map(card => (
+            <div key={card.label} style={{
+              background: '#fff',
+              borderRadius: '12px',
+              padding: '18px 20px',
+              border: '1px solid #E8E6E0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              <div style={{ fontSize: '20px', marginBottom: '8px' }}>{card.icon}</div>
+              <div style={{ fontSize: '22px', fontWeight: '700', color: card.cor, letterSpacing: '-0.5px' }}>
+                {carregando ? <span style={{ color: '#ccc' }}>—</span> : card.valor}
+              </div>
+              <div style={{ fontSize: '12px', color: '#888780', marginTop: '4px' }}>{card.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filtros e busca */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="🔍 Buscar por número, remetente ou destinatário..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            style={{
+              flex: '1',
+              minWidth: '240px',
+              padding: '9px 14px',
+              borderRadius: '8px',
+              border: '1px solid #D8D6D0',
+              fontSize: '13px',
+              background: '#fff',
+              outline: 'none',
+            }}
+          />
+          {['Todos', 'Faturado', 'Recebido', 'Pendente', 'Cancelado'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFiltroStatus(s)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: '1px solid',
+                borderColor: filtroStatus === s ? '#1A1916' : '#D8D6D0',
+                background: filtroStatus === s ? '#1A1916' : '#fff',
+                color: filtroStatus === s ? '#fff' : '#555',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >{s}</button>
+          ))}
+        </div>
+
+        {/* Tabela de CTes */}
+        <div style={{
+          background: '#fff',
+          borderRadius: '12px',
+          border: '1px solid #E8E6E0',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #F0EEE8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '14px', fontWeight: '600' }}>CT-es</span>
+            <span style={{ fontSize: '12px', color: '#888780' }}>{ctesFiltradas.length} registros</span>
+          </div>
+
+          {carregando ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: '#888780', fontSize: '14px' }}>
+              Carregando CTes...
+            </div>
+          ) : ctesFiltradas.length === 0 ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: '#888780', fontSize: '14px' }}>
+              {ctes.length === 0
+                ? 'Nenhuma CT-e encontrada. Clique em "Sincronizar CTes" para importar.'
+                : 'Nenhuma CT-e corresponde aos filtros.'}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: '#F8F7F4' }}>
+                    {['Nº CT-e', 'Remetente', 'Destinatário', 'Origem → Destino', 'Modal', 'Valor', 'Emissão', 'Status'].map(h => (
+                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: '12px', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ctesFiltradas.map((c, i) => {
+                    const st = STATUS_STYLE[c.status] ?? STATUS_STYLE.Pendente
+                    return (
+                      <tr key={c.id} style={{ borderTop: '1px solid #F0EEE8', background: i % 2 === 0 ? '#fff' : '#FAFAF8' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: '600', color: '#1A1916' }}>{c.numero_cte ?? '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#444', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.remetente_nome ?? '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#444', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.destinatario_nome ?? '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.uf_origem} → {c.uf_destino}</td>
+                        <td style={{ padding: '10px 16px', color: '#666' }}>{c.modal ?? '—'}</td>
+                        <td style={{ padding: '10px 16px', fontWeight: '600', color: '#2E7D32', whiteSpace: 'nowrap' }}>{c.valor_servico != null ? fmt(c.valor_servico) : '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.data_emissao ? new Date(c.data_emissao).toLocaleDateString('pt-BR') : '—'}</td>
+                        <td style={{ padding: '10px 16px' }}>
+                          <span style={{
+                            background: st.bg,
+                            color: st.color,
+                            padding: '3px 10px',
+                            borderRadius: '99px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap',
+                          }}>{st.label}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        * { box-sizing: border-box; }
+        input:focus { border-color: #1A1916 !important; box-shadow: 0 0 0 2px rgba(26,25,22,0.1); }
+      `}</style>
+    </div>
+  )
+}

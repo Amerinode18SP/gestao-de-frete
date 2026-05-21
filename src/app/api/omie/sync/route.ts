@@ -6,9 +6,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { syncCtes } from '@/lib/omie/sync'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
 
+// Vercel Hobby: 60s. Pro: 300s. Definimos maxDuration para o máximo disponível.
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
-    // Validar autorização (Bearer token ou chave interna para cron)
+    // Validar autorização
     const auth = req.headers.get('authorization')
     const cronKey = req.headers.get('x-cron-key')
 
@@ -19,25 +22,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Identificar empresa
-    const { empresa_id } = await req.json().catch(() => ({}))
+    // Identificar empresa e página inicial (para retomada)
+    const body = await req.json().catch(() => ({}))
+    const { empresa_id, pagina_inicio = 1 } = body
+
     if (!empresa_id) {
       return NextResponse.json({ error: 'empresa_id obrigatório' }, { status: 400 })
     }
 
-    // Buscar credenciais Omie da empresa (se não usar env global)
-    const supabase = createSupabaseAdmin()
-    const { data: empresa } = await supabase
-      .from('empresas')
-      .select('omie_app_key, omie_app_secret')
-      .eq('id', empresa_id)
-      .single()
+    // Executar sync do lote atual
+    const result = await syncCtes(empresa_id, undefined, pagina_inicio)
 
-    // Executar sync
-    const result = await syncCtes(empresa_id)
-
+    // Se há mais páginas, retorna proxima_pagina para o cliente continuar
     return NextResponse.json({
-      message: 'Sincronização concluída',
+      message: result.proxima_pagina
+        ? `Lote concluído. Continuar da página ${result.proxima_pagina}/${result.total_paginas}`
+        : 'Sincronização concluída',
       ...result,
     })
   } catch (err: any) {

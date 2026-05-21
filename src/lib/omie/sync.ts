@@ -14,24 +14,36 @@ function createSupabaseAdmin() {
 }
 
 // ============================================================
-// Sincronizar todos os CT-e de uma empresa
+// Sincronizar CT-e em lotes de páginas (evita timeout Vercel)
+// paginaInicio e paginaFim permitem retomar de onde parou
 // ============================================================
 export async function syncCtes(
   empresaId: string,
-  omieClient?: OmieClient
-): Promise<SyncResult> {
+  omieClient?: OmieClient,
+  paginaInicio = 1,
+  paginaFim?: number        // undefined = até o fim
+): Promise<SyncResult & { proxima_pagina?: number; total_paginas?: number }> {
   const supabase = createSupabaseAdmin()
   const client = omieClient ?? createOmieClient()
   const inicio = Date.now()
 
-  // Registrar início do sync
+  // Registrar início do sync (ou reaproveitar log se já existe para esta empresa)
   const { data: logEntry } = await supabase
     .from('sync_logs')
-    .insert({ empresa_id: empresaId, status: 'running' })
+    .insert({
+      empresa_id: empresaId,
+      status: 'running',
+      pagina_inicio: paginaInicio,
+    })
     .select('id')
     .single()
 
-  const result: SyncResult = { importados: 0, atualizados: 0, erros: 0, duracao_ms: 0 }
+  const result: SyncResult & { proxima_pagina?: number; total_paginas?: number } = {
+    importados: 0,
+    atualizados: 0,
+    erros: 0,
+    duracao_ms: 0,
+  }
 
   try {
     // Buscar fornecedores e centros de custo da empresa para fazer o match
@@ -56,13 +68,38 @@ export async function syncCtes(
 
     const existentesMap = new Map(existentes?.map(c => [c.omie_id, c]) ?? [])
 
-    // Buscar todos CT-e do Omie com progresso
-    console.log(`[sync] Iniciando busca CT-e empresa ${empresaId}`)
-    const omieCtEList = await client.listarTodosCtes((pag, total) => {
-      console.log(`[sync] Página ${pag}/${total}`)
-    })
+    // -------------------------------------------------------
+    // Buscar páginas do Omie em lote (max 40 páginas por vez
+    // para ficar dentro dos 55s da Vercel com folga)
+    // -------------------------------------------------------
+    const MAX_PAGINAS_POR_LOTE = 40
+    const fimLote = paginaFim ?? paginaInicio + MAX_PAGINAS_POR_LOTE - 1
 
-    // Processar em lotes de 50
+    console.log(`[sync] Buscando páginas ${paginaInicio} até ${fimLote} — empresa ${empresaId}`)
+
+    const omieCtEList: OmieCte[] = []
+    let pagina = paginaInicio
+    let totalPaginas = fimLote  // será atualizado na 1ª resposta
+
+    do {
+      const resp = await client.listarCtes(pagina, 50)
+      totalPaginas = resp.nTotPaginas
+
+      if (resp.listaCte) {
+        omieCtEList.push(...resp.listaCte)
+      }
+
+      console.log(`[sync] Página ${pagina}/${totalPaginas}`)
+      pagina++
+
+      if (pagina <= Math.min(fimLote, totalPaginas)) {
+        await new Promise(r => setTimeout(r, 350))
+      }
+    } while (pagina <= Math.min(fimLote, totalPaginas))
+
+    // -------------------------------------------------------
+    // Salvar no Supabase em lotes de 50
+    // -------------------------------------------------------
     const LOTE = 50
     for (let i = 0; i < omieCtEList.length; i += LOTE) {
       const lote = omieCtEList.slice(i, i + LOTE)
@@ -71,7 +108,6 @@ export async function syncCtes(
         const centroCustoId = centroMap.get(raw.cCodCentroCusto ?? '')
         return {
           ...OmieClient.normalizar(raw, empresaId, fornecedorId, centroCustoId),
-          // manter ID se já existe
           ...(existentesMap.has(raw.nCodCte) ? { id: existentesMap.get(raw.nCodCte)!.id } : {}),
         }
       })
@@ -91,26 +127,40 @@ export async function syncCtes(
       }
     }
 
-    // Verificar alertas após sync
-    await verificarAlertas(empresaId, supabase)
+    // -------------------------------------------------------
+    // Indicar se há mais páginas a sincronizar
+    // -------------------------------------------------------
+    const proximaPagina = pagina <= totalPaginas ? pagina : undefined
+    result.proxima_pagina = proximaPagina
+    result.total_paginas = totalPaginas
 
-    // Atualizar log com sucesso
+    // Verificar alertas só no lote final
+    if (!proximaPagina) {
+      await verificarAlertas(empresaId, supabase)
+    }
+
     result.duracao_ms = Date.now() - inicio
+
     if (logEntry) {
       await supabase
         .from('sync_logs')
         .update({
-          status: 'success',
+          status: proximaPagina ? 'partial' : 'success',
           finalizado_em: new Date().toISOString(),
           ctes_importados: result.importados,
           ctes_atualizados: result.atualizados,
+          proxima_pagina: proximaPagina ?? null,
         })
         .eq('id', logEntry.id)
     }
 
-    console.log(`[sync] ✓ Concluído: ${result.importados} novos, ${result.atualizados} atualizados`)
-    return result
+    console.log(
+      proximaPagina
+        ? `[sync] Lote concluído: ${result.importados} novos, ${result.atualizados} atualizados. Continuar da página ${proximaPagina}/${totalPaginas}`
+        : `[sync] ✓ Concluído: ${result.importados} novos, ${result.atualizados} atualizados`
+    )
 
+    return result
   } catch (err: any) {
     result.duracao_ms = Date.now() - inicio
     console.error('[sync] Erro crítico:', err.message)
@@ -146,7 +196,6 @@ async function verificarAlertas(empresaId: string, supabase: any) {
   const inicioSemana = new Date(agora)
   inicioSemana.setDate(agora.getDate() - agora.getDay())
 
-  // Gasto semanal
   const { data: semanalData } = await supabase
     .from('ctes')
     .select('valor_servico')
@@ -170,7 +219,6 @@ async function verificarAlertas(empresaId: string, supabase: any) {
     })
   }
 
-  // Gasto por fornecedor no mês
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
   const { data: fornecedorData } = await supabase
     .from('ctes')
