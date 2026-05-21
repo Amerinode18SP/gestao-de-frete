@@ -1,25 +1,5 @@
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
-// FREIGHT-MS — Cliente Omie API (corrigido para Amerinode)
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
+// FREIGHT-MS — Cliente Omie API
 // ============================================================
 
 import axios, { AxiosInstance } from 'axios'
@@ -35,28 +15,8 @@ import {
 
 const OMIE_BASE_URL = 'https://app.omie.com.br/api/v1'
 
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
 // Mapeamentos
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
 
 const MODAL_MAP: Record<string, Modal> = {
@@ -89,28 +49,8 @@ const STATUS_MAP: Record<string, StatusCte> = {
   'P':         'Pendente',
 }
 
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
 // Classe principal
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
 
 export class OmieClient {
@@ -147,7 +87,7 @@ export class OmieClient {
   }
 
   // ----------------------------------------------------------
-  // Listar CT-e via Contas a Pagar (como estão na Amerinode)
+  // Listar CT-e via Contas a Pagar (uma página)
   // ----------------------------------------------------------
   async listarCtes(pagina = 1, registrosPorPagina = 50): Promise<OmieListaCteResponse> {
     const data = await this.call<any>(
@@ -160,69 +100,39 @@ export class OmieClient {
       }
     )
 
-    // Filtrar apenas CT-e
     const todos = data.conta_pagar_cadastro ?? []
     const ctes = todos.filter((r: any) => r.codigo_tipo_documento === 'CTE')
 
     return {
-      nPagina: pagina,
-      nTotPaginas: data.total_de_paginas ?? 1,
-      nRegistros: ctes.length,
+      nPagina:       pagina,
+      nTotPaginas:   data.total_de_paginas ?? 1,
+      nRegistros:    ctes.length,
       nTotRegistros: data.total_de_registros ?? 0,
-      listaCte: ctes.map((r: any) => this.mapContaPagarToCte(r)),
+      listaCte:      ctes.map((r: any) => this.mapContaPagarToCte(r)),
     }
   }
 
   // ----------------------------------------------------------
-  // Buscar todos CT-e (paginação automática)
+  // Listar fornecedores (uma página)
   // ----------------------------------------------------------
-  async listarTodosCtes(
-    onProgress?: (atual: number, total: number) => void
-  ): Promise<OmieCte[]> {
-    const todos: OmieCte[] = []
-    let pagina = 1
-    let totalPaginas = 1
-
-    do {
-      // Buscar página com todos os documentos e filtrar CTE no cliente
-      const data = await this.call<any>(
-        '/financas/contapagar/',
-        'ListarContasPagar',
-        {
-          pagina,
-          registros_por_pagina: 50,
-          apenas_importado_api: 'N',
-        }
-      )
-
-      totalPaginas = data.total_de_paginas ?? 1
-      const registros = data.conta_pagar_cadastro ?? []
-      const ctes = registros.filter((r: any) => r.codigo_tipo_documento === 'CTE')
-
-      // Buscar fornecedores únicos desta página (com cache)
-      const codigosUnicos = [...new Set(ctes.map((r: any) => r.codigo_cliente_fornecedor).filter(Boolean))] as number[]
-      await Promise.all(codigosUnicos.map((cod: number) => this.buscarFornecedor(cod)))
-
-      todos.push(...ctes.map((r: any) => {
-        const forn = r.codigo_cliente_fornecedor ? this.fornecedorCache.get(r.codigo_cliente_fornecedor) : undefined
-        return this.mapContaPagarToCte(r, forn)
-      }))
-
-      onProgress?.(pagina, totalPaginas)
-      pagina++
-
-      // Respeitar rate limit Omie (~3 req/s)
-      if (pagina <= totalPaginas) {
-        await new Promise(r => setTimeout(r, 400))
+  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
+    const data = await this.call<any>(
+      '/geral/fornecedores/',
+      'ListarFornecedores',
+      {
+        pagina,
+        registros_por_pagina: registrosPorPagina,
+        apenas_importado_api: 'N',
       }
-    } while (pagina <= totalPaginas)
-
-    return todos
+    )
+    return {
+      fornecedores:  data.cadastro ?? [],
+      total_paginas: data.total_de_paginas ?? 1,
+    }
   }
 
   // ----------------------------------------------------------
   // Cache de fornecedores (codigo_omie → { nome, cnpj })
-  // Evita chamadas repetidas à API para o mesmo fornecedor
   // ----------------------------------------------------------
   private fornecedorCache = new Map<number, { nome: string; cnpj: string }>()
 
@@ -230,57 +140,64 @@ export class OmieClient {
     if (this.fornecedorCache.has(codigoOmie)) {
       return this.fornecedorCache.get(codigoOmie)!
     }
-    try {
-      const data = await this.call<any>(
-        '/geral/clientes/',
-        'ConsultarCliente',
-        { codigo_cliente_omie: codigoOmie }
-      )
-      const result = {
-        nome: data.razao_social ?? data.nome_fantasia ?? '',
-        cnpj: data.cnpj_cpf ?? '',
-      }
-      this.fornecedorCache.set(codigoOmie, result)
-      return result
-    } catch {
-      return { nome: '', cnpj: '' }
+
+    // Tenta como Fornecedor primeiro, depois como Cliente
+    for (const [endpoint, call, param] of [
+      ['/geral/fornecedores/', 'ConsultarFornecedor', { codigo_fornecedor_omie: codigoOmie }],
+      ['/geral/clientes/',     'ConsultarCliente',    { codigo_cliente_omie:    codigoOmie }],
+    ] as const) {
+      try {
+        const data = await this.call<any>(endpoint, call, param)
+        const result = {
+          nome: data.razao_social ?? data.nome_fantasia ?? '',
+          cnpj: (data.cnpj_cpf ?? '').replace(/\D/g, ''),
+        }
+        if (result.nome) {
+          this.fornecedorCache.set(codigoOmie, result)
+          return result
+        }
+      } catch { /* tenta o próximo */ }
     }
+
+    const empty = { nome: '', cnpj: '' }
+    this.fornecedorCache.set(codigoOmie, empty)
+    return empty
   }
 
   // ----------------------------------------------------------
-  // Mapear Conta a Pagar (CT-e) → formato interno OmieCte
+  // Mapear Conta a Pagar → OmieCte
   // ----------------------------------------------------------
   private mapContaPagarToCte(raw: any, fornecedor?: { nome: string; cnpj: string }): OmieCte {
     return {
-      nCodCte:              Number(raw.codigo_lancamento_omie ?? 0),
+      nCodCte:               Number(raw.codigo_lancamento_omie ?? 0),
       omie_fornecedor_codigo: Number(raw.codigo_cliente_fornecedor ?? 0) || undefined,
-      cNumCte:          raw.numero_documento_fiscal ?? raw.numero_documento ?? '',
-      cChaveCte:        raw.chave_nfe ?? '',
-      cNumNF:           raw.numero_documento ?? '',
-      cTipoTomador:     '2',
-      cNomeRemetente:   fornecedor?.nome ?? '',
-      cCNPJRemetente:   fornecedor?.cnpj ?? '',
-      cNomeDestinatario:'',
-      cCNPJDestinatario:'',
-      cNomeTomador:     fornecedor?.nome ?? '',
-      cCNPJTomador:     fornecedor?.cnpj ?? '',
-      cUFDestino:       '',
-      cUFOrigem:        '',
-      cModalTransp:     'R',
-      nValorCte:        raw.valor_documento ?? 0,
-      nValorMerc:       0,
-      nPesoReal:        0,
-      nPesoCubado:      0,
-      nPesoTaxado:      0,
-      cLinkNFe:         '',
-      cStatus:          STATUS_MAP[raw.status_titulo] ?? 'P',
-      dDtEmissao:       raw.data_emissao ?? '',
-      cCodCentroCusto:  raw.distribuicao?.[0]?.cCodDep ?? '',
+      cNumCte:               raw.numero_documento_fiscal ?? raw.numero_documento ?? '',
+      cChaveCte:             raw.chave_nfe ?? '',
+      cNumNF:                raw.numero_documento ?? '',
+      cTipoTomador:          '2',
+      cNomeRemetente:        fornecedor?.nome ?? '',
+      cCNPJRemetente:        fornecedor?.cnpj ?? '',
+      cNomeDestinatario:     '',
+      cCNPJDestinatario:     '',
+      cNomeTomador:          fornecedor?.nome ?? '',
+      cCNPJTomador:          fornecedor?.cnpj ?? '',
+      cUFDestino:            '',
+      cUFOrigem:             '',
+      cModalTransp:          'R',
+      nValorCte:             raw.valor_documento ?? 0,
+      nValorMerc:            0,
+      nPesoReal:             0,
+      nPesoCubado:           0,
+      nPesoTaxado:           0,
+      cLinkNFe:              '',
+      cStatus:               STATUS_MAP[raw.status_titulo] ?? 'P',
+      dDtEmissao:            raw.data_emissao ?? '',
+      cCodCentroCusto:       raw.distribuicao?.[0]?.cCodDep ?? '',
     }
   }
 
   // ----------------------------------------------------------
-  // Converter CT-e Omie → formato interno do banco
+  // Normalizar OmieCte → formato do banco Supabase
   // ----------------------------------------------------------
   static normalizar(
     raw: OmieCte,
@@ -329,28 +246,8 @@ export class OmieClient {
   }
 }
 
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
 // ============================================================
-// Factory — instância com credenciais do env
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
-
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50) {
-    const data = await (this as any).call('/geral/fornecedores/', 'ListarFornecedores', { pagina, registros_por_pagina: registrosPorPagina, apenas_importado_api: 'N' })
-    return { fornecedores: data.cadastro ?? [], total_paginas: data.total_de_paginas ?? 1 }
-  }
+// Factory
 // ============================================================
 export function createOmieClient(): OmieClient {
   const app_key    = process.env.OMIE_APP_KEY
