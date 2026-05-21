@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
   const PAGE_SIZE = 50
 
+  const [syncForn, setSyncForn] = useState<{ running: boolean; concluido: boolean; erro?: string }>({ running: false, concluido: false })
   const [sync, setSync] = useState<SyncStatus>({
     running: false, pagina: 0, total: 0,
     importados: 0, atualizados: 0, concluido: false,
@@ -146,6 +147,28 @@ export default function DashboardPage() {
     }
   }
 
+  const iniciarSyncFornecedores = async () => {
+    setSyncForn({ running: true, concluido: false })
+    let pagina = 1
+    try {
+      while (true) {
+        const res = await fetch('/api/omie/sync-fornecedores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
+          body: JSON.stringify({ empresa_id: EMPRESA_ID, pagina_inicio: pagina }),
+        })
+        const data = await res.json()
+        if (!res.ok) { setSyncForn({ running: false, concluido: false, erro: data.error }); return }
+        if (!data.proxima_pagina) break
+        pagina = data.proxima_pagina
+        await new Promise(r => setTimeout(r, 300))
+      }
+      setSyncForn({ running: false, concluido: true })
+    } catch (e: any) {
+      setSyncForn({ running: false, concluido: false, erro: e.message })
+    }
+  }
+
   const progresso = sync.total > 0 ? Math.round((sync.pagina / sync.total) * 100) : 0
 
   return (
@@ -156,6 +179,13 @@ export default function DashboardPage() {
           <span style={{ fontSize: '20px' }}>🚛</span>
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Frete</span>
         </div>
+        <button
+          onClick={iniciarSyncFornecedores}
+          disabled={syncForn.running || sync.running}
+          style={{ background: syncForn.running ? '#333' : '#1976D2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: syncForn.running ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+        >
+          {syncForn.running ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Sincronizando...</> : syncForn.concluido ? '✅ Transportadoras' : '🏢 Sync Transportadoras'}
+        </button>
         <button
           onClick={iniciarSync}
           disabled={sync.running}
