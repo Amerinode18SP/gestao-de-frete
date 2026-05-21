@@ -23,29 +23,73 @@ export async function POST(req: NextRequest) {
     const supabase = createSupabaseAdmin()
     const client = createOmieClient()
 
-    // Buscar fornecedores do Omie (40 páginas por vez)
     const MAX_PAG = 40
     let pagina = pagina_inicio
     let totalPaginas = pagina_inicio + MAX_PAG - 1
     let importados = 0
+    let erros = 0
 
     do {
       const data = await client.listarFornecedores(pagina, 50)
       totalPaginas = data.total_paginas
 
-      const upserts = (data.fornecedores ?? []).map((f: any) => ({
-        empresa_id,
-        nome: f.razao_social ?? f.nome_fantasia ?? '',
-        cnpj: (f.cnpj_cpf ?? '').replace(/\D/g, ''),
-        omie_codigo: f.codigo_fornecedor_omie ?? null,
-        ativo: f.inativo !== 'S',
-      })).filter((f: any) => f.nome)
+      for (const f of data.fornecedores ?? []) {
+        const nome = f.razao_social ?? f.nome_fantasia ?? ''
+        if (!nome) continue
 
-      if (upserts.length > 0) {
-        await supabase
+        const omie_codigo = f.codigo_fornecedor_omie ?? null
+        const cnpj = (f.cnpj_cpf ?? '').replace(/\D/g, '') || null
+
+        // Tenta por omie_codigo primeiro (mais confiável)
+        if (omie_codigo) {
+          const { data: existing } = await supabase
+            .from('fornecedores')
+            .select('id')
+            .eq('empresa_id', empresa_id)
+            .eq('omie_codigo', omie_codigo)
+            .maybeSingle()
+
+          if (existing) {
+            // Atualiza registro existente
+            await supabase
+              .from('fornecedores')
+              .update({ nome, cnpj, ativo: f.inativo !== 'S' })
+              .eq('id', existing.id)
+            importados++
+            continue
+          }
+        }
+
+        // Tenta por CNPJ se tiver
+        if (cnpj) {
+          const { data: existing } = await supabase
+            .from('fornecedores')
+            .select('id')
+            .eq('empresa_id', empresa_id)
+            .eq('cnpj', cnpj)
+            .maybeSingle()
+
+          if (existing) {
+            await supabase
+              .from('fornecedores')
+              .update({ nome, omie_codigo, ativo: f.inativo !== 'S' })
+              .eq('id', existing.id)
+            importados++
+            continue
+          }
+        }
+
+        // Insere novo
+        const { error } = await supabase
           .from('fornecedores')
-          .upsert(upserts, { onConflict: 'empresa_id,cnpj', ignoreDuplicates: false })
-        importados += upserts.length
+          .insert({ empresa_id, nome, cnpj, omie_codigo, ativo: f.inativo !== 'S' })
+
+        if (error) {
+          console.error('[sync-forn] Erro ao inserir:', nome, error.message)
+          erros++
+        } else {
+          importados++
+        }
       }
 
       pagina++
@@ -57,8 +101,11 @@ export async function POST(req: NextRequest) {
     const proxima_pagina = pagina <= totalPaginas ? pagina : undefined
 
     return NextResponse.json({
-      message: proxima_pagina ? `Continuar da página ${proxima_pagina}` : 'Fornecedores sincronizados',
+      message: proxima_pagina
+        ? `Continuar da página ${proxima_pagina}`
+        : 'Fornecedores sincronizados',
       importados,
+      erros,
       proxima_pagina,
       total_paginas: totalPaginas,
     })

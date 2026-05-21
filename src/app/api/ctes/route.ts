@@ -29,7 +29,11 @@ export async function GET(req: NextRequest) {
       fornecedor:fornecedores(nome)
     `, { count: 'exact' })
     .eq('empresa_id', empresa_id)
-    .order('data_emissao', { ascending: false })
+    // Filtrar "cartão de crédito" e registros sem número válido de CT-e
+    .not('numero_cte', 'ilike', '%cart%')
+    .not('numero_cte', 'ilike', '%crédit%')
+    .not('numero_cte', 'ilike', '%credito%')
+    .order('data_emissao', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
 
   if (status && status !== 'Todos') {
@@ -37,7 +41,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (busca) {
-    query = query.or(`numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%`)
+    // Busca em número, remetente, destinatário E nome do fornecedor via subquery
+    query = query.or(
+      `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%`
+    )
   }
 
   const { data, error, count } = await query
@@ -46,11 +53,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Preencher remetente com nome do fornecedor quando vazio
+  // Preencher transportadora: preferência fornecedor > remetente_nome
   const ctes = (data ?? []).map((c: any) => ({
     ...c,
-    remetente_nome: c.remetente_nome || c.fornecedor?.nome || '',
-    fornecedor_nome: c.fornecedor?.nome || '',
+    fornecedor_nome: c.fornecedor?.nome || c.remetente_nome || '',
+    remetente_nome:  c.fornecedor?.nome || c.remetente_nome || '',
   }))
 
   return NextResponse.json({

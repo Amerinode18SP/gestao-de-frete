@@ -15,24 +15,24 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  const { data, error } = await supabase
-    .from('ctes')
-    .select('status, valor_servico')
-    .eq('empresa_id', empresa_id)
+  // Contar por status em paralelo (muito mais rápido que buscar todos os registros)
+  const [total, faturado, recebido, cancelado, pendente, valorRes] = await Promise.all([
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).not('numero_cte', 'ilike', '%cart%').not('numero_cte', 'ilike', '%credit%'),
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Faturado'),
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Recebido'),
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Cancelado'),
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Pendente'),
+    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id).not('numero_cte', 'ilike', '%cart%'),
+  ])
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  const valor_total = (valorRes.data ?? []).reduce((a: number, r: any) => a + (r.valor_servico ?? 0), 0)
 
-  const rows = data ?? []
-  const resumo = {
-    total:        rows.length,
-    faturado:     rows.filter(r => r.status === 'Faturado').length,
-    recebido:     rows.filter(r => r.status === 'Recebido').length,
-    cancelado:    rows.filter(r => r.status === 'Cancelado').length,
-    pendente:     rows.filter(r => r.status === 'Pendente').length,
-    valor_total:  rows.reduce((a, r) => a + (r.valor_servico ?? 0), 0),
-  }
-
-  return NextResponse.json(resumo)
+  return NextResponse.json({
+    total:     total.count     ?? 0,
+    faturado:  faturado.count  ?? 0,
+    recebido:  recebido.count  ?? 0,
+    cancelado: cancelado.count ?? 0,
+    pendente:  pendente.count  ?? 0,
+    valor_total,
+  })
 }
