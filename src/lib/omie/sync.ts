@@ -108,7 +108,8 @@ export async function syncCtes(
       const lote = omieCtEList.slice(i, i + LOTE)
       const upserts = lote.map((raw: OmieCte) => {
         const cnpj = (raw.cCNPJRemetente || raw.cCNPJTomador || '').replace(/\D/g, '')
-        const fornecedorId = fornecedorMap.get(cnpj) ?? fornecedorOmieMap.get(raw.nCodCte)
+        const omieCodigoForn = (raw as any).omie_fornecedor_codigo
+        const fornecedorId = fornecedorMap.get(cnpj) ?? (omieCodigoForn ? fornecedorOmieMap.get(omieCodigoForn) : undefined)
         const centroCustoId = centroMap.get(raw.cCodCentroCusto ?? '')
         return {
           ...OmieClient.normalizar(raw, empresaId, fornecedorId, centroCustoId),

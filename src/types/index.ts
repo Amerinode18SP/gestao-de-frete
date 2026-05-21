@@ -159,6 +159,7 @@ export interface OmieCredentials {
 
 export interface OmieCte {
   nCodCte: number
+  omie_fornecedor_codigo?: number
   cNumCte: string
   dDtEmissao: string
   nValorCte: number

@@ -192,7 +192,8 @@ export class OmieClient {
   // ----------------------------------------------------------
   private mapContaPagarToCte(raw: any, fornecedor?: { nome: string; cnpj: string }): OmieCte {
     return {
-      nCodCte:          Number(raw.codigo_lancamento_omie ?? 0),
+      nCodCte:              Number(raw.codigo_lancamento_omie ?? 0),
+      omie_fornecedor_codigo: Number(raw.codigo_cliente_fornecedor ?? 0) || undefined,
       cNumCte:          raw.numero_documento_fiscal ?? raw.numero_documento ?? '',
       cChaveCte:        raw.chave_nfe ?? '',
       cNumNF:           raw.numero_documento ?? '',
@@ -266,26 +267,8 @@ export class OmieClient {
         : undefined,
     }
   }
-
-  // ----------------------------------------------------------
-  // Listar todos os fornecedores do Omie (paginado)
-  // ----------------------------------------------------------
-  async listarFornecedores(pagina = 1, registrosPorPagina = 50): Promise<{ fornecedores: any[]; total_paginas: number }> {
-    const data = await this.call<any>(
-      '/geral/fornecedores/',
-      'ListarFornecedores',
-      {
-        pagina,
-        registros_por_pagina: registrosPorPagina,
-        apenas_importado_api: 'N',
-      }
-    )
-    return {
-      fornecedores: data.cadastro ?? [],
-      total_paginas: data.total_de_paginas ?? 1,
-    }
-  }
 }
+
 // ============================================================
 // Factory — instância com credenciais do env
 // ============================================================
