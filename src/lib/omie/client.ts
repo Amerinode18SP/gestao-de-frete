@@ -201,7 +201,7 @@ export class OmieClient {
 
       numero_cte:        raw.cNumCte,
       chave_acesso:      raw.cChaveCte || `omie-${raw.nCodCte}`,
-      omie_id:           parseInt(raw.nCodCte) || undefined,
+      omie_id:           raw.nCodCte || undefined,
       omie_numero_nf:    raw.cNumNF,
 
       tomador_tipo:      TOMADOR_MAP[raw.cTipoTomador] ?? 'Terceiros',
