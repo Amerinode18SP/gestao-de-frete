@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 
@@ -10,6 +10,14 @@ interface SyncStatus {
   atualizados: number
   erro?: string
   concluido: boolean
+}
+
+interface ResolverStatus {
+  running: boolean
+  resolvidos: number
+  ainda_pendentes: number
+  concluido: boolean
+  erro?: string
 }
 
 interface Resumo {
@@ -49,7 +57,9 @@ export default function DashboardPage() {
   const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
   const PAGE_SIZE = 50
 
-  const [syncForn, setSyncForn] = useState<{ running: boolean; concluido: boolean; erro?: string }>({ running: false, concluido: false })
+  const [resolver, setResolver] = useState<ResolverStatus>({
+    running: false, resolvidos: 0, ainda_pendentes: 0, concluido: false
+  })
   const [sync, setSync] = useState<SyncStatus>({
     running: false, pagina: 0, total: 0,
     importados: 0, atualizados: 0, concluido: false,
@@ -96,7 +106,6 @@ export default function DashboardPage() {
     carregarCtes(1, 'Todos', '')
   }, [carregarResumo, carregarCtes])
 
-  // Busca com debounce
   useEffect(() => {
     const t = setTimeout(() => carregarCtes(1, filtroStatus, busca), 400)
     return () => clearTimeout(t)
@@ -123,16 +132,16 @@ export default function DashboardPage() {
         }
 
         const data = await res.json()
-        totalImportados += data.importados ?? 0
+        totalImportados  += data.importados ?? 0
         totalAtualizados += data.atualizados ?? 0
 
         setSync({
-          running: !!data.proxima_pagina,
-          pagina: data.proxima_pagina ?? pagina,
-          total: data.total_paginas ?? 0,
+          running:    !!data.proxima_pagina,
+          pagina:     data.proxima_pagina ?? pagina,
+          total:      data.total_paginas ?? 0,
           importados: totalImportados,
           atualizados: totalAtualizados,
-          concluido: !data.proxima_pagina,
+          concluido:  !data.proxima_pagina,
         })
 
         if (!data.proxima_pagina) break
@@ -149,23 +158,39 @@ export default function DashboardPage() {
 
   const resolverTransportadoras = async () => {
     setResolver({ running: true, resolvidos: 0, ainda_pendentes: 0, concluido: false })
-    let pagina = 1
+    let totalResolvidos = 0
+
     try {
       while (true) {
-        const res = await fetch('/api/omie/sync-fornecedores', {
+        const res = await fetch('/api/omie/resolver-transportadoras', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
-          body: JSON.stringify({ empresa_id: EMPRESA_ID, pagina_inicio: pagina }),
+          body: JSON.stringify({ empresa_id: EMPRESA_ID }),
         })
+
+        if (!res.ok) {
+          const err = await res.json()
+          setResolver(s => ({ ...s, running: false, erro: err.error ?? 'Erro' }))
+          return
+        }
+
         const data = await res.json()
-        if (!res.ok) { setSyncForn({ running: false, concluido: false, erro: data.error }); return }
-        if (!data.proxima_pagina) break
-        pagina = data.proxima_pagina
-        await new Promise(r => setTimeout(r, 300))
+        totalResolvidos += data.resolvidos ?? 0
+
+        setResolver({
+          running:          data.tem_mais ?? false,
+          resolvidos:       totalResolvidos,
+          ainda_pendentes:  data.ainda_pendentes ?? 0,
+          concluido:        !data.tem_mais,
+        })
+
+        if (!data.tem_mais) break
+        await new Promise(r => setTimeout(r, 800))
       }
-      setSyncForn({ running: false, concluido: true })
+
+      await carregarCtes(1, filtroStatus, busca)
     } catch (e: any) {
-      setSyncForn({ running: false, concluido: false, erro: e.message })
+      setResolver(s => ({ ...s, running: false, erro: e.message }))
     }
   }
 
@@ -179,31 +204,39 @@ export default function DashboardPage() {
           <span style={{ fontSize: '20px' }}>🚛</span>
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Frete</span>
         </div>
-        <button
-          onClick={resolverTransportadoras}
-          disabled={syncForn.running || sync.running}
-          style={{ background: syncForn.running ? '#333' : '#1976D2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: syncForn.running ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
-        >
-          {syncForn.running ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Sincronizando...</> : syncForn.concluido ? '✅ Transportadoras' : '🔍 Preencher Transportadoras'}
-        </button>
-        <button
-          onClick={iniciarSync}
-          disabled={sync.running}
-          style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
-        >
-          {sync.running ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Sincronizando... {sync.pagina}/{sync.total}</> : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={resolverTransportadoras}
+            disabled={resolver.running || sync.running}
+            style={{ background: resolver.running ? '#555' : resolver.concluido ? '#1B5E20' : '#7B1FA2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: resolver.running ? 'not-allowed' : 'pointer' }}
+          >
+            {resolver.running
+              ? `⟳ Resolvendo... (${resolver.resolvidos})`
+              : resolver.concluido
+              ? `✅ ${resolver.resolvidos} resolvidas`
+              : '🔍 Preencher Transportadoras'}
+          </button>
+          <button
+            onClick={iniciarSync}
+            disabled={sync.running || resolver.running}
+            style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer' }}
+          >
+            {sync.running
+              ? `⟳ Sincronizando... ${sync.pagina}/${sync.total}`
+              : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
+          </button>
+        </div>
       </header>
 
       <main style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
 
-        {/* Banner de progresso */}
+        {/* Banners */}
         {(sync.running || sync.concluido || sync.erro) && (
-          <div style={{ background: sync.erro ? '#FFEBEE' : sync.concluido ? '#E8F5E9' : '#E3F2FD', border: `1px solid ${sync.erro ? '#FFCDD2' : sync.concluido ? '#C8E6C9' : '#BBDEFB'}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
+          <div style={{ background: sync.erro ? '#FFEBEE' : sync.concluido ? '#E8F5E9' : '#E3F2FD', border: `1px solid ${sync.erro ? '#FFCDD2' : sync.concluido ? '#C8E6C9' : '#BBDEFB'}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
             {sync.erro ? (
               <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {sync.erro}</p>
             ) : sync.concluido ? (
-              <p style={{ margin: 0, color: '#2E7D32', fontSize: '14px' }}>✅ Sincronização concluída — <strong>{sync.importados} novos</strong>, {sync.atualizados} atualizados</p>
+              <p style={{ margin: 0, color: '#2E7D32', fontSize: '14px' }}>✅ Sync concluído — <strong>{sync.importados} novos</strong>, {sync.atualizados} atualizados. Clique em <strong>"Preencher Transportadoras"</strong> para buscar os nomes.</p>
             ) : (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -214,6 +247,18 @@ export default function DashboardPage() {
                   <div style={{ background: '#1976D2', width: `${progresso}%`, height: '100%', borderRadius: '99px', transition: 'width 0.4s ease' }} />
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {(resolver.running || resolver.concluido || resolver.erro) && (
+          <div style={{ background: resolver.erro ? '#FFEBEE' : resolver.concluido ? '#F3E5F5' : '#EDE7F6', border: `1px solid ${resolver.erro ? '#FFCDD2' : '#CE93D8'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
+            {resolver.erro ? (
+              <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {resolver.erro}</p>
+            ) : resolver.concluido ? (
+              <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>✅ {resolver.resolvidos} transportadoras preenchidas{resolver.ainda_pendentes > 0 ? ` — ${resolver.ainda_pendentes} ainda sem nome (não encontradas no Omie)` : '!'}</p>
+            ) : (
+              <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>🔍 Buscando transportadoras no Omie... {resolver.resolvidos} resolvidas até agora</p>
             )}
           </div>
         )}
@@ -299,7 +344,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Paginação */}
           {totalPages > 1 && (
             <div style={{ padding: '16px 20px', borderTop: '1px solid #F0EEE8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#888780' }}>Página {page} de {totalPages}</span>
