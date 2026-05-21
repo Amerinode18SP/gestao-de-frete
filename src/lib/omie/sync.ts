@@ -60,6 +60,20 @@ export async function syncCtes(
     const fornecedorMap = new Map(fornecedores?.map(f => [f.cnpj, f.id]) ?? [])
     const centroMap = new Map(centros?.map(c => [c.codigo, c.id]) ?? [])
 
+    // Helper: buscar ou criar fornecedor pelo CNPJ
+    async function upsertFornecedor(nome: string, cnpj: string): Promise<string | undefined> {
+      if (!cnpj) return undefined
+      const cnpjLimpo = cnpj.replace(/\D/g, '')
+      if (fornecedorMap.has(cnpjLimpo)) return fornecedorMap.get(cnpjLimpo)
+      const { data: novo } = await supabase
+        .from('fornecedores')
+        .upsert({ empresa_id: empresaId, nome, cnpj: cnpjLimpo, ativo: true }, { onConflict: 'empresa_id,cnpj', ignoreDuplicates: false })
+        .select('id')
+        .single()
+      if (novo?.id) fornecedorMap.set(cnpjLimpo, novo.id)
+      return novo?.id
+    }
+
     // Buscar CT-e existentes para saber quais são novos vs atualização
     const { data: existentes } = await supabase
       .from('ctes')
@@ -103,8 +117,16 @@ export async function syncCtes(
     const LOTE = 50
     for (let i = 0; i < omieCtEList.length; i += LOTE) {
       const lote = omieCtEList.slice(i, i + LOTE)
+      // Criar fornecedores novos automaticamente
+      await Promise.all(lote.map(async (raw: OmieCte) => {
+        const nome = raw.cNomeRemetente || raw.cNomeTomador || ''
+        const cnpj = raw.cCNPJRemetente || raw.cCNPJTomador || ''
+        if (nome && cnpj) await upsertFornecedor(nome, cnpj)
+      }))
+
       const upserts = lote.map((raw: OmieCte) => {
-        const fornecedorId = fornecedorMap.get(raw.cCNPJTomador?.replace(/\D/g, ''))
+        const cnpj = (raw.cCNPJRemetente || raw.cCNPJTomador || '').replace(/\D/g, '')
+        const fornecedorId = fornecedorMap.get(cnpj)
         const centroCustoId = centroMap.get(raw.cCodCentroCusto ?? '')
         return {
           ...OmieClient.normalizar(raw, empresaId, fornecedorId, centroCustoId),
