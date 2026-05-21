@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 
@@ -147,8 +147,8 @@ export default function DashboardPage() {
     }
   }
 
-  const iniciarSyncFornecedores = async () => {
-    setSyncForn({ running: true, concluido: false })
+  const resolverTransportadoras = async () => {
+    setResolver({ running: true, resolvidos: 0, ainda_pendentes: 0, concluido: false })
     let pagina = 1
     try {
       while (true) {
@@ -180,11 +180,11 @@ export default function DashboardPage() {
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Frete</span>
         </div>
         <button
-          onClick={iniciarSyncFornecedores}
+          onClick={resolverTransportadoras}
           disabled={syncForn.running || sync.running}
           style={{ background: syncForn.running ? '#333' : '#1976D2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: syncForn.running ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
         >
-          {syncForn.running ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Sincronizando...</> : syncForn.concluido ? '✅ Transportadoras' : '🏢 Sync Transportadoras'}
+          {syncForn.running ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Sincronizando...</> : syncForn.concluido ? '✅ Transportadoras' : '🔍 Preencher Transportadoras'}
         </button>
         <button
           onClick={iniciarSync}
