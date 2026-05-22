@@ -202,7 +202,7 @@ export class OmieClient {
       omie_fornecedor_codigo: raw.omie_fornecedor_codigo ?? undefined,
       // FIX: cStatus já é 'Faturado'/'Pendente'/'Cancelado'/'Recebido'
       // NÃO passar pelo STATUS_MAP de novo (causava tudo virar 'Pendente')
-      status:            raw.cStatus ?? 'Pendente',
+      status:            (raw.cStatus as StatusCte) ?? 'Pendente',
       data_emissao:      raw.dDtEmissao
         ? raw.dDtEmissao.split('/').reverse().join('-')
         : undefined,
