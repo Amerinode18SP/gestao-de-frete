@@ -19,8 +19,7 @@ function extrairTexto(xml: string, tag: string): string {
 }
 
 function extrairPesoReal(xml: string): number {
-  // Busca <infQ> com tpMed=Peso_Real
-  const blocos = xml.match(/<infQ>[sS]*?<\/infQ>/g) ?? []
+  const blocos = xml.match(/<infQ>[\s\S]*?<\/infQ>/g) ?? []
   for (const bloco of blocos) {
     if (bloco.includes('Peso_Real')) {
       const q = bloco.match(/<qCarga>([^<]*)<\/qCarga>/)
@@ -31,26 +30,25 @@ function extrairPesoReal(xml: string): number {
 }
 
 function extrairDadosCte(xml: string) {
-  // Chave de acesso
   const chaveMatch = xml.match(/Id="CTe(\d{44})"/)
   const chave = chaveMatch?.[1] ?? ''
 
-  // UF origem e destino
   const ufIni = extrairTexto(xml, 'UFIni')
   const ufFim = extrairTexto(xml, 'UFFim')
   const munIni = extrairTexto(xml, 'xMunIni')
   const munFim = extrairTexto(xml, 'xMunFim')
 
-  // Destinatário — pegar xNome dentro do bloco <dest>
-  const destBloco = xml.match(/<dest>[sS]*?<\/dest>/)?.[0] ?? ''
+  // Extrair destinatário — bloco <dest>
+  const destMatch = xml.match(/<dest>[\s\S]*?<\/dest>/)
+  const destBloco = destMatch?.[0] ?? ''
   const destNome = extrairTexto(destBloco, 'xNome')
 
-  // Modal
   const modalCod = extrairTexto(xml, 'modal')
   const modal = MODAL_MAP[modalCod] ?? 'Rodoviário'
 
-  // Peso real
   const pesoReal = extrairPesoReal(xml)
+
+  console.log(`[xml-import] Chave: ${chave} | UFIni: ${ufIni} | UFFim: ${ufFim} | Dest: ${destNome} | Peso: ${pesoReal}`)
 
   return { chave, ufIni, ufFim, munIni, munFim, destNome, modal, pesoReal }
 }
@@ -70,7 +68,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'empresa_id e arquivo obrigatórios' }, { status: 400 })
     }
 
-    // Ler o ZIP
     const buffer = await arquivo.arrayBuffer()
     const zip = await JSZip.loadAsync(buffer)
     const supabase = createSupabaseAdmin()
@@ -82,8 +79,7 @@ export async function POST(req: NextRequest) {
     const arquivos = Object.keys(zip.files).filter(f => f.endsWith('.xml'))
     console.log(`[xml-import] ${arquivos.length} XMLs encontrados no ZIP`)
 
-    // Processar em lotes de 50
-    const LOTE = 50
+    const LOTE = 20
     for (let i = 0; i < arquivos.length; i += LOTE) {
       const lote = arquivos.slice(i, i + LOTE)
 
@@ -94,15 +90,19 @@ export async function POST(req: NextRequest) {
 
           if (!dados.chave) return
 
+          // Montar objeto de update apenas com campos que têm valor
+          const updateData: Record<string, any> = {}
+          if (dados.ufIni)    updateData.uf_origem         = dados.ufIni
+          if (dados.ufFim)    updateData.uf_destino        = dados.ufFim
+          if (dados.destNome) updateData.destinatario_nome = dados.destNome
+          if (dados.modal)    updateData.modal             = dados.modal
+          if (dados.pesoReal > 0) updateData.peso_real     = dados.pesoReal
+
+          if (Object.keys(updateData).length === 0) return
+
           const { error } = await supabase
             .from('ctes')
-            .update({
-              uf_origem:        dados.ufIni || undefined,
-              uf_destino:       dados.ufFim || undefined,
-              destinatario_nome: dados.destNome || undefined,
-              modal:            dados.modal || undefined,
-              peso_real:        dados.pesoReal || undefined,
-            })
+            .update(updateData)
             .eq('empresa_id', empresa_id)
             .eq('chave_acesso', dados.chave)
 
