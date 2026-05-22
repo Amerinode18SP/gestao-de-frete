@@ -1,6 +1,5 @@
 // ============================================================
-// FREIGHT-MS — POST /api/xml/importar
-// Recebe ZIP com XMLs de CT-e e extrai origem/destino/peso
+// FREIGHT-MS - POST /api/xml/importar
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
@@ -9,127 +8,101 @@ import JSZip from 'jszip'
 export const maxDuration = 60
 
 const MODAL_MAP: Record<string, string> = {
-  '01': 'Rodoviário', '02': 'Aéreo', '03': 'Aquaviário',
-  '04': 'Ferroviário', '05': 'Dutoviário',
+  '01': 'Rodovi\u00e1rio', '02': 'A\u00e9reo', '03': 'Aquavi\u00e1rio',
+  '04': 'Ferrovi\u00e1rio', '05': 'Dutovi\u00e1rio',
 }
 
 function extrairTexto(xml: string, tag: string): string {
-  const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`))
-  return match?.[1]?.trim() ?? ''
+  const idx = xml.indexOf('<' + tag + '>')
+  if (idx === -1) return ''
+  const start = idx + tag.length + 2
+  const end = xml.indexOf('</' + tag + '>', start)
+  if (end === -1) return ''
+  return xml.substring(start, end).trim()
+}
+
+function extrairDestNome(xml: string): string {
+  const ini = xml.indexOf('<dest>')
+  const fim = xml.indexOf('</dest>')
+  if (ini === -1 || fim === -1) return ''
+  const bloco = xml.substring(ini, fim + 7)
+  return extrairTexto(bloco, 'xNome')
 }
 
 function extrairPesoReal(xml: string): number {
-  const blocos = xml.match(/<infQ>[\s\S]*?<\/infQ>/g) ?? []
-  for (const bloco of blocos) {
-    if (bloco.includes('Peso_Real')) {
-      const q = bloco.match(/<qCarga>([^<]*)<\/qCarga>/)
-      if (q) return parseFloat(q[1]) || 0
+  let pos = 0
+  while (pos < xml.length) {
+    const ini = xml.indexOf('<infQ>', pos)
+    if (ini === -1) break
+    const fim = xml.indexOf('</infQ>', ini)
+    if (fim === -1) break
+    const bloco = xml.substring(ini, fim + 7)
+    if (bloco.indexOf('Peso_Real') !== -1) {
+      const qi = bloco.indexOf('<qCarga>')
+      const qf = bloco.indexOf('</qCarga>')
+      if (qi !== -1 && qf !== -1) return parseFloat(bloco.substring(qi + 8, qf)) || 0
     }
+    pos = fim + 7
   }
   return 0
 }
 
-function extrairDadosCte(xml: string) {
-  const chaveMatch = xml.match(/Id="CTe(\d{44})"/)
-  const chave = chaveMatch?.[1] ?? ''
-
-  const ufIni = extrairTexto(xml, 'UFIni')
-  const ufFim = extrairTexto(xml, 'UFFim')
-  const munIni = extrairTexto(xml, 'xMunIni')
-  const munFim = extrairTexto(xml, 'xMunFim')
-
-  // Extrair destinatário — bloco <dest>
-  const destMatch = xml.match(/<dest>[\s\S]*?<\/dest>/)
-  const destBloco = destMatch?.[0] ?? ''
-  const destNome = extrairTexto(destBloco, 'xNome')
-
-  const modalCod = extrairTexto(xml, 'modal')
-  const modal = MODAL_MAP[modalCod] ?? 'Rodoviário'
-
-  const pesoReal = extrairPesoReal(xml)
-
-  console.log(`[xml-import] Chave: ${chave} | UFIni: ${ufIni} | UFFim: ${ufFim} | Dest: ${destNome} | Peso: ${pesoReal}`)
-
-  return { chave, ufIni, ufFim, munIni, munFim, destNome, modal, pesoReal }
+function extrairChave(xml: string): string {
+  const tag = 'Id="CTe'
+  const idx = xml.indexOf(tag)
+  if (idx === -1) return ''
+  return xml.substring(idx + tag.length, idx + tag.length + 44)
 }
 
 export async function POST(req: NextRequest) {
   try {
     const auth = req.headers.get('authorization')
     if (!auth?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
     }
-
     const formData = await req.formData()
     const empresa_id = formData.get('empresa_id') as string
     const arquivo = formData.get('arquivo') as File
-
     if (!empresa_id || !arquivo) {
-      return NextResponse.json({ error: 'empresa_id e arquivo obrigatórios' }, { status: 400 })
+      return NextResponse.json({ error: 'empresa_id e arquivo obrigatorios' }, { status: 400 })
     }
-
     const buffer = await arquivo.arrayBuffer()
     const zip = await JSZip.loadAsync(buffer)
     const supabase = createSupabaseAdmin()
-
-    let processados = 0
     let atualizados = 0
     let erros = 0
-
     const arquivos = Object.keys(zip.files).filter(f => f.endsWith('.xml'))
-    console.log(`[xml-import] ${arquivos.length} XMLs encontrados no ZIP`)
-
+    console.log('[xml-import] ' + arquivos.length + ' XMLs no ZIP')
     const LOTE = 20
     for (let i = 0; i < arquivos.length; i += LOTE) {
       const lote = arquivos.slice(i, i + LOTE)
-
-      await Promise.all(lote.map(async (nomeArquivo) => {
+      await Promise.all(lote.map(async (nome) => {
         try {
-          const conteudo = await zip.files[nomeArquivo].async('string')
-          const dados = extrairDadosCte(conteudo)
-
-          if (!dados.chave) return
-
-          // Montar objeto de update apenas com campos que têm valor
-          const updateData: Record<string, any> = {}
-          if (dados.ufIni)    updateData.uf_origem         = dados.ufIni
-          if (dados.ufFim)    updateData.uf_destino        = dados.ufFim
-          if (dados.destNome) updateData.destinatario_nome = dados.destNome
-          if (dados.modal)    updateData.modal             = dados.modal
-          if (dados.pesoReal > 0) updateData.peso_real     = dados.pesoReal
-
-          if (Object.keys(updateData).length === 0) return
-
-          const { error } = await supabase
-            .from('ctes')
-            .update(updateData)
-            .eq('empresa_id', empresa_id)
-            .eq('chave_acesso', dados.chave)
-
-          if (error) {
-            console.error(`[xml-import] Erro ao atualizar ${dados.chave}:`, error.message)
-            erros++
-          } else {
-            atualizados++
-          }
-          processados++
-        } catch (e: any) {
-          console.error(`[xml-import] Erro no arquivo ${nomeArquivo}:`, e.message)
-          erros++
-        }
+          const xml = await zip.files[nome].async('string')
+          const chave = extrairChave(xml)
+          if (!chave) return
+          const ufIni = extrairTexto(xml, 'UFIni')
+          const ufFim = extrairTexto(xml, 'UFFim')
+          const destNome = extrairDestNome(xml)
+          const modalCod = extrairTexto(xml, 'modal')
+          const modal = MODAL_MAP[modalCod] || 'Rodovi\u00e1rio'
+          const pesoReal = extrairPesoReal(xml)
+          console.log('[xml-import] ' + chave + ' dest=' + destNome + ' peso=' + pesoReal)
+          const upd: Record<string, any> = {}
+          if (ufIni) upd.uf_origem = ufIni
+          if (ufFim) upd.uf_destino = ufFim
+          if (destNome) upd.destinatario_nome = destNome
+          if (modal) upd.modal = modal
+          if (pesoReal > 0) upd.peso_real = pesoReal
+          if (Object.keys(upd).length === 0) return
+          const { error } = await supabase.from('ctes').update(upd).eq('empresa_id', empresa_id).eq('chave_acesso', chave)
+          if (error) { console.error('[xml-import] erro:', error.message); erros++ } else { atualizados++ }
+        } catch(e: any) { erros++ }
       }))
     }
-
-    console.log(`[xml-import] Concluído: ${atualizados} atualizados, ${erros} erros`)
-
-    return NextResponse.json({
-      message: `${atualizados} CTes atualizadas com dados do XML`,
-      processados,
-      atualizados,
-      erros,
-    })
+    console.log('[xml-import] fim: ' + atualizados + ' atualizados')
+    return NextResponse.json({ message: atualizados + ' CTes atualizadas', atualizados, erros })
   } catch (err: any) {
-    console.error('[xml-import] Erro crítico:', err.message)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
