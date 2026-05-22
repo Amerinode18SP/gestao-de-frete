@@ -161,6 +161,7 @@ export class OmieClient {
       cStatus:                STATUS_MAP[raw.status_titulo] ?? 'Pendente',
       dDtEmissao:             raw.data_emissao ?? '',
       cCodCentroCusto:        raw.distribuicao?.[0]?.cCodDep ?? '',
+      cNomeCentroCusto:       raw.distribuicao?.[0]?.cDesDep ?? '',
     }
   }
 
@@ -200,6 +201,7 @@ export class OmieClient {
       peso_taxado:       raw.nPesoTaxado,
       link_nfe:          raw.cLinkNFe,
       omie_fornecedor_codigo: raw.omie_fornecedor_codigo ?? undefined,
+      centro_custo_nome:      (raw as any).cNomeCentroCusto || undefined,
       // FIX: cStatus já é 'Faturado'/'Pendente'/'Cancelado'/'Recebido'
       // NÃO passar pelo STATUS_MAP de novo (causava tudo virar 'Pendente')
       status:            (raw.cStatus as StatusCte) ?? 'Pendente',

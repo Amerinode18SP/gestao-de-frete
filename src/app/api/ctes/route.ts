@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     .select(`
       id, numero_cte, remetente_nome, destinatario_nome,
       uf_origem, uf_destino, chave_acesso, valor_servico, status,
-      data_emissao, modal, peso_real, nota_fiscal_relacionada, operacao_descricao, fornecedor_id,
+      data_emissao, modal, peso_real, centro_custo_nome, fornecedor_id,
       fornecedor:fornecedores(nome)
     `, { count: 'exact' })
     .eq('empresa_id', empresa_id)
