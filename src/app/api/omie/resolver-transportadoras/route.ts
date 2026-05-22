@@ -46,17 +46,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdmin()
 
-    // 1. Buscar códigos Omie únicos de CTes que não têm fornecedor_id
+    // FIX: buscar apenas CTes PENDENTES sem fornecedor_id
+    // CTes Faturadas/Recebidas nunca vão ter omie_fornecedor_codigo (limitação API Omie)
+    // Sem esse filtro o botão fica em loop infinito
     const { data: ctesSemFornecedor } = await supabase
       .from('ctes')
       .select('omie_fornecedor_codigo')
       .eq('empresa_id', empresa_id)
+      .eq('status', 'Pendente')        // ← FIX: só Pendentes
       .is('fornecedor_id', null)
       .not('omie_fornecedor_codigo', 'is', null)
-      .limit(500) // processa até 500 CTes por chamada
+      .limit(500)
 
     if (!ctesSemFornecedor || ctesSemFornecedor.length === 0) {
-      return NextResponse.json({ message: 'Nenhuma CTe pendente de transportadora', resolvidos: 0 })
+      return NextResponse.json({ message: 'Nenhuma CTe pendente de transportadora', resolvidos: 0, tem_mais: false })
     }
 
     // Códigos únicos
@@ -68,13 +71,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Para cada código, buscar no Omie e salvar na tabela fornecedores
     let resolvidos = 0
-    const LOTE = 5 // 5 chamadas paralelas por vez
+    const LOTE = 5
 
     for (let i = 0; i < codigosUnicos.length; i += LOTE) {
       const lote = codigosUnicos.slice(i, i + LOTE)
 
       await Promise.all(lote.map(async (codigo) => {
-        // Verifica se já existe na tabela fornecedores
         const { data: existente } = await supabase
           .from('fornecedores')
           .select('id')
@@ -85,10 +87,8 @@ export async function POST(req: NextRequest) {
         let fornecedorId = existente?.id
 
         if (!fornecedorId) {
-          // Busca no Omie
           const info = await consultarCliente(codigo)
           if (info?.nome) {
-            // Salva na tabela fornecedores
             const { data: novo } = await supabase
               .from('fornecedores')
               .upsert({
@@ -105,7 +105,6 @@ export async function POST(req: NextRequest) {
         }
 
         if (fornecedorId) {
-          // Atualiza todas as CTes com esse código
           await supabase
             .from('ctes')
             .update({ fornecedor_id: fornecedorId })
@@ -116,17 +115,17 @@ export async function POST(req: NextRequest) {
         }
       }))
 
-      // Pausa entre lotes para não sobrecarregar a API do Omie
       if (i + LOTE < codigosUnicos.length) {
         await new Promise(r => setTimeout(r, 500))
       }
     }
 
-    // 3. Verificar se ainda sobrou CTes sem fornecedor
+    // FIX: verificar restantes também só para Pendentes
     const { count: restantes } = await supabase
       .from('ctes')
       .select('*', { count: 'exact', head: true })
       .eq('empresa_id', empresa_id)
+      .eq('status', 'Pendente')        // ← FIX: só Pendentes
       .is('fornecedor_id', null)
       .not('omie_fornecedor_codigo', 'is', null)
 
