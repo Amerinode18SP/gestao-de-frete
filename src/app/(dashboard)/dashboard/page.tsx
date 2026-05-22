@@ -41,6 +41,7 @@ interface Cte {
   data_emissao: string
   modal: string
   chave_acesso: string
+  peso_real: number
 }
 
 const fmt = (v: number) =>
@@ -310,7 +311,7 @@ export default function DashboardPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: '#F8F7F4' }}>
-                    {['Nº CT-e', 'Transportadora', 'Origem → Destino', 'Modal', 'Valor', 'Emissão', 'Status'].map(h => (
+                    {['Nº CT-e', 'Transportadora', 'Destinatário', 'Origem → Destino', 'Modal', 'Peso (kg)', 'Valor', 'Emissão', 'Status'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: '12px', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -325,8 +326,10 @@ export default function DashboardPage() {
                       <tr key={c.id} style={{ borderTop: '1px solid #F0EEE8', background: i % 2 === 0 ? '#fff' : '#FAFAF8' }}>
                         <td style={{ padding: '10px 16px', fontWeight: '600' }}>{c.numero_cte ?? '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#444', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transportadora}</td>
+                        <td style={{ padding: '10px 16px', color: '#444', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.destinatario_nome || '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{origem} → {destino}</td>
                         <td style={{ padding: '10px 16px', color: '#666' }}>{c.modal ?? '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.peso_real ? c.peso_real.toLocaleString('pt-BR') : '—'}</td>
                         <td style={{ padding: '10px 16px', fontWeight: '600', color: '#2E7D32', whiteSpace: 'nowrap' }}>{c.valor_servico != null ? fmt(c.valor_servico) : '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.data_emissao ? new Date(c.data_emissao).toLocaleDateString('pt-BR') : '—'}</td>
                         <td style={{ padding: '10px 16px' }}>
