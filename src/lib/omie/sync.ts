@@ -27,7 +27,6 @@ export async function syncCtes(
   const client = omieClient ?? createOmieClient()
   const inicio = Date.now()
 
-  // Registrar início do sync (ou reaproveitar log se já existe para esta empresa)
   const { data: logEntry } = await supabase
     .from('sync_logs')
     .insert({
@@ -46,7 +45,6 @@ export async function syncCtes(
   }
 
   try {
-    // Buscar fornecedores e centros de custo da empresa para fazer o match
     const { data: fornecedores } = await supabase
       .from('fornecedores')
       .select('id, cnpj, omie_codigo')
@@ -57,24 +55,21 @@ export async function syncCtes(
       .select('id, codigo')
       .eq('empresa_id', empresaId)
 
-    // Match por CNPJ (CTes com remetente preenchido)
     const fornecedorMap = new Map(fornecedores?.map(f => [f.cnpj, f.id]) ?? [])
-    // Match por código Omie (CTes de contas a pagar)
     const fornecedorOmieMap = new Map(fornecedores?.filter(f => f.omie_codigo).map(f => [f.omie_codigo, f.id]) ?? [])
     const centroMap = new Map(centros?.map(c => [c.codigo, c.id]) ?? [])
 
-    // Buscar CT-e existentes para saber quais são novos vs atualização
+    // -------------------------------------------------------
+    // FIX: buscar também o fornecedor_id já salvo no banco
+    // para não sobrescrever com vazio quando CTe for paga
+    // -------------------------------------------------------
     const { data: existentes } = await supabase
       .from('ctes')
-      .select('omie_id, id, status')
+      .select('omie_id, id, status, fornecedor_id')
       .eq('empresa_id', empresaId)
 
     const existentesMap = new Map(existentes?.map(c => [c.omie_id, c]) ?? [])
 
-    // -------------------------------------------------------
-    // Buscar páginas do Omie em lote (max 40 páginas por vez
-    // para ficar dentro dos 55s da Vercel com folga)
-    // -------------------------------------------------------
     const MAX_PAGINAS_POR_LOTE = 40
     const fimLote = paginaFim ?? paginaInicio + MAX_PAGINAS_POR_LOTE - 1
 
@@ -82,7 +77,7 @@ export async function syncCtes(
 
     const omieCtEList: OmieCte[] = []
     let pagina = paginaInicio
-    let totalPaginas = fimLote  // será atualizado na 1ª resposta
+    let totalPaginas = fimLote
 
     do {
       const resp = await client.listarCtes(pagina, 50)
@@ -100,20 +95,27 @@ export async function syncCtes(
       }
     } while (pagina <= Math.min(fimLote, totalPaginas))
 
-    // -------------------------------------------------------
-    // Salvar no Supabase em lotes de 50
-    // -------------------------------------------------------
     const LOTE = 50
     for (let i = 0; i < omieCtEList.length; i += LOTE) {
       const lote = omieCtEList.slice(i, i + LOTE)
       const upserts = lote.map((raw: OmieCte) => {
         const cnpj = (raw.cCNPJRemetente || raw.cCNPJTomador || '').replace(/\D/g, '')
         const omieCodigoForn = (raw as any).omie_fornecedor_codigo
-        const fornecedorId = fornecedorMap.get(cnpj) ?? (omieCodigoForn ? fornecedorOmieMap.get(omieCodigoForn) : undefined)
+
+        // Fornecedor_id novo vindo do Omie agora
+        const fornecedorIdNovo = fornecedorMap.get(cnpj) ?? (omieCodigoForn ? fornecedorOmieMap.get(omieCodigoForn) : undefined)
+
+        // -------------------------------------------------------
+        // FIX: se o Omie não retornou fornecedor (CTe paga),
+        // mantém o fornecedor_id que já estava salvo no banco
+        // -------------------------------------------------------
+        const existente = existentesMap.get(raw.nCodCte)
+        const fornecedorId = fornecedorIdNovo ?? existente?.fornecedor_id ?? undefined
+
         const centroCustoId = centroMap.get(raw.cCodCentroCusto ?? '')
         return {
           ...OmieClient.normalizar(raw, empresaId, fornecedorId, centroCustoId),
-          ...(existentesMap.has(raw.nCodCte) ? { id: existentesMap.get(raw.nCodCte)!.id } : {}),
+          ...(existente ? { id: existente.id } : {}),
         }
       })
 
@@ -132,14 +134,10 @@ export async function syncCtes(
       }
     }
 
-    // -------------------------------------------------------
-    // Indicar se há mais páginas a sincronizar
-    // -------------------------------------------------------
     const proximaPagina = pagina <= totalPaginas ? pagina : undefined
     result.proxima_pagina = proximaPagina
     result.total_paginas = totalPaginas
 
-    // Verificar alertas só no lote final
     if (!proximaPagina) {
       await verificarAlertas(empresaId, supabase)
     }
@@ -162,7 +160,7 @@ export async function syncCtes(
     console.log(
       proximaPagina
         ? `[sync] Lote concluído: ${result.importados} novos, ${result.atualizados} atualizados. Continuar da página ${proximaPagina}/${totalPaginas}`
-        : `[sync] ✓ Concluído: ${result.importados} novos, ${result.atualizados} atualizados`
+        : `[sync] ✔ Concluído: ${result.importados} novos, ${result.atualizados} atualizados`
     )
 
     return result
