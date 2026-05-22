@@ -70,7 +70,7 @@ export async function syncCtes(
 
     const existentesMap = new Map(existentes?.map(c => [c.omie_id, c]) ?? [])
 
-    const MAX_PAGINAS_POR_LOTE = 40
+    const MAX_PAGINAS_POR_LOTE = 20
     const fimLote = paginaFim ?? paginaInicio + MAX_PAGINAS_POR_LOTE - 1
 
     console.log(`[sync] Buscando páginas ${paginaInicio} até ${fimLote} — empresa ${empresaId}`)
@@ -91,7 +91,7 @@ export async function syncCtes(
       pagina++
 
       if (pagina <= Math.min(fimLote, totalPaginas)) {
-        await new Promise(r => setTimeout(r, 350))
+        await new Promise(r => setTimeout(r, 200))
       }
     } while (pagina <= Math.min(fimLote, totalPaginas))
 
