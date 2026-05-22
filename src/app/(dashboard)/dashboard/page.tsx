@@ -159,9 +159,10 @@ export default function DashboardPage() {
   const resolverTransportadoras = async () => {
     setResolver({ running: true, resolvidos: 0, ainda_pendentes: 0, concluido: false })
     let totalResolvidos = 0
+    const MAX_TENTATIVAS = 20 // segurança: nunca mais que 20 chamadas (20 × 500 = 10.000 CTes)
 
     try {
-      while (true) {
+      for (let tentativa = 0; tentativa < MAX_TENTATIVAS; tentativa++) {
         const res = await fetch('/api/omie/resolver-transportadoras', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
@@ -184,10 +185,16 @@ export default function DashboardPage() {
           concluido:        !data.tem_mais,
         })
 
+        // Para se não há mais CTes para resolver
         if (!data.tem_mais) break
+
+        // Para se esta rodada não resolveu nada (evita loop infinito)
+        if ((data.resolvidos ?? 0) === 0) break
+
         await new Promise(r => setTimeout(r, 800))
       }
 
+      setResolver(s => ({ ...s, running: false, concluido: true }))
       await carregarCtes(1, filtroStatus, busca)
     } catch (e: any) {
       setResolver(s => ({ ...s, running: false, erro: e.message }))
