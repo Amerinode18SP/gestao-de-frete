@@ -47,9 +47,9 @@ const fmt = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Faturado:  { bg: '#E8F5E9', color: '#2E7D32' },
-  Cancelado: { bg: '#FFEBEE', color: '#C62828' },
-  Pendente:  { bg: '#FFF8E1', color: '#E65100' },
+  Faturado:   { bg: '#E8F5E9', color: '#2E7D32' },
+  Cancelado:  { bg: '#FFEBEE', color: '#C62828' },
+  Pendente:   { bg: '#FFF8E1', color: '#E65100' },
   'A vencer': { bg: '#FFF8E1', color: '#E65100' },
 }
 
@@ -64,6 +64,9 @@ export default function DashboardPage() {
     running: false, pagina: 0, total: 0,
     importados: 0, atualizados: 0, concluido: false,
   })
+  const [xmlImport, setXmlImport] = useState<{ running: boolean; mensagem: string; erro?: string }>({
+    running: false, mensagem: ''
+  })
   const [resumo, setResumo] = useState<Resumo | null>(null)
   const [ctes, setCtes] = useState<Cte[]>([])
   const [busca, setBusca] = useState('')
@@ -72,8 +75,6 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCtes, setTotalCtes] = useState(0)
-  const [xmlImport, setXmlImport] = useState<{ running: boolean; mensagem: string; erro?: string }>({ running: false, mensagem: '' })
-  const [xmlImport, setXmlImport] = useState<{ running: boolean; mensagem: string; erro?: string }>({ running: false, mensagem: '' })
 
   const carregarCtes = useCallback(async (p = 1, status = 'Todos', q = '') => {
     setCarregando(true)
@@ -118,7 +119,6 @@ export default function DashboardPage() {
     let pagina = 1
     let totalImportados = 0
     let totalAtualizados = 0
-
     try {
       while (true) {
         const res = await fetch('/api/omie/sync', {
@@ -126,31 +126,26 @@ export default function DashboardPage() {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
           body: JSON.stringify({ empresa_id: EMPRESA_ID, pagina_inicio: pagina }),
         })
-
         if (!res.ok) {
           const err = await res.json()
           setSync(s => ({ ...s, running: false, erro: err.error ?? 'Erro no servidor' }))
           return
         }
-
         const data = await res.json()
         totalImportados  += data.importados ?? 0
         totalAtualizados += data.atualizados ?? 0
-
         setSync({
-          running:    !!data.proxima_pagina,
-          pagina:     data.proxima_pagina ?? pagina,
-          total:      data.total_paginas ?? 0,
-          importados: totalImportados,
+          running:     !!data.proxima_pagina,
+          pagina:      data.proxima_pagina ?? pagina,
+          total:       data.total_paginas ?? 0,
+          importados:  totalImportados,
           atualizados: totalAtualizados,
-          concluido:  !data.proxima_pagina,
+          concluido:   !data.proxima_pagina,
         })
-
         if (!data.proxima_pagina) break
         pagina = data.proxima_pagina
         await new Promise(r => setTimeout(r, 500))
       }
-
       await carregarResumo()
       await carregarCtes(1, filtroStatus, busca)
     } catch (e: any) {
@@ -161,8 +156,7 @@ export default function DashboardPage() {
   const resolverTransportadoras = async () => {
     setResolver({ running: true, resolvidos: 0, ainda_pendentes: 0, concluido: false })
     let totalResolvidos = 0
-    const MAX_TENTATIVAS = 20 // segurança: nunca mais que 20 chamadas (20 × 500 = 10.000 CTes)
-
+    const MAX_TENTATIVAS = 20
     try {
       for (let tentativa = 0; tentativa < MAX_TENTATIVAS; tentativa++) {
         const res = await fetch('/api/omie/resolver-transportadoras', {
@@ -170,32 +164,23 @@ export default function DashboardPage() {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer interno' },
           body: JSON.stringify({ empresa_id: EMPRESA_ID }),
         })
-
         if (!res.ok) {
           const err = await res.json()
           setResolver(s => ({ ...s, running: false, erro: err.error ?? 'Erro' }))
           return
         }
-
         const data = await res.json()
         totalResolvidos += data.resolvidos ?? 0
-
         setResolver({
-          running:          data.tem_mais ?? false,
-          resolvidos:       totalResolvidos,
-          ainda_pendentes:  data.ainda_pendentes ?? 0,
-          concluido:        !data.tem_mais,
+          running:         data.tem_mais ?? false,
+          resolvidos:      totalResolvidos,
+          ainda_pendentes: data.ainda_pendentes ?? 0,
+          concluido:       !data.tem_mais,
         })
-
-        // Para se não há mais CTes para resolver
         if (!data.tem_mais) break
-
-        // Para se esta rodada não resolveu nada (evita loop infinito)
         if ((data.resolvidos ?? 0) === 0) break
-
         await new Promise(r => setTimeout(r, 800))
       }
-
       setResolver(s => ({ ...s, running: false, concluido: true }))
       await carregarCtes(1, filtroStatus, busca)
     } catch (e: any) {
@@ -223,31 +208,10 @@ export default function DashboardPage() {
     }
   }
 
-  const importarXml = async (arquivo: File) => {
-    setXmlImport({ running: true, mensagem: 'Processando XMLs...' })
-    try {
-      const formData = new FormData()
-      formData.append('empresa_id', EMPRESA_ID)
-      formData.append('arquivo', arquivo)
-      const res = await fetch('/api/xml/importar', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer interno' },
-        body: formData,
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Erro ao importar')
-      setXmlImport({ running: false, mensagem: data.message })
-      await carregarCtes(1, filtroStatus, busca)
-    } catch (e: any) {
-      setXmlImport({ running: false, mensagem: '', erro: e.message })
-    }
-  }
-
   const progresso = sync.total > 0 ? Math.round((sync.pagina / sync.total) * 100) : 0
 
   return (
     <div style={{ minHeight: '100vh', background: '#F0EEE8', fontFamily: "'DM Sans', system-ui, sans-serif", color: '#1A1916' }}>
-      {/* Header */}
       <header style={{ background: '#1A1916', padding: '0 32px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🚛</span>
@@ -258,40 +222,24 @@ export default function DashboardPage() {
             {xmlImport.running ? '⟳ Importando...' : '📂 Importar XMLs'}
             <input type="file" accept=".zip" style={{ display: 'none' }} disabled={xmlImport.running} onChange={e => { const f = e.target.files?.[0]; if (f) importarXml(f); e.target.value = ''; }} />
           </label>
-          <button
-            onClick={resolverTransportadoras}
-            disabled={resolver.running || sync.running}
-            style={{ background: resolver.running ? '#555' : resolver.concluido ? '#1B5E20' : '#7B1FA2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: resolver.running ? 'not-allowed' : 'pointer' }}
-          >
-            {resolver.running
-              ? `⟳ Resolvendo... (${resolver.resolvidos})`
-              : resolver.concluido
-              ? `✅ ${resolver.resolvidos} resolvidas`
-              : '🔍 Preencher Transportadoras'}
+          <button onClick={resolverTransportadoras} disabled={resolver.running || sync.running}
+            style={{ background: resolver.running ? '#555' : resolver.concluido ? '#1B5E20' : '#7B1FA2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: resolver.running ? 'not-allowed' : 'pointer' }}>
+            {resolver.running ? `⟳ Resolvendo... (${resolver.resolvidos})` : resolver.concluido ? `✅ ${resolver.resolvidos} resolvidas` : '🔍 Preencher Transportadoras'}
           </button>
-          <button
-            onClick={iniciarSync}
-            disabled={sync.running || resolver.running}
-            style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer' }}
-          >
-            {sync.running
-              ? `⟳ Sincronizando... ${sync.pagina}/${sync.total}`
-              : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
+          <button onClick={iniciarSync} disabled={sync.running || resolver.running}
+            style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer' }}>
+            {sync.running ? `⟳ Sincronizando... ${sync.pagina}/${sync.total}` : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
           </button>
         </div>
       </header>
 
       <main style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
 
-        {/* Banners */}
         {(sync.running || sync.concluido || sync.erro) && (
           <div style={{ background: sync.erro ? '#FFEBEE' : sync.concluido ? '#E8F5E9' : '#E3F2FD', border: `1px solid ${sync.erro ? '#FFCDD2' : sync.concluido ? '#C8E6C9' : '#BBDEFB'}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '16px' }}>
-            {sync.erro ? (
-              <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {sync.erro}</p>
-            ) : sync.concluido ? (
-              <p style={{ margin: 0, color: '#2E7D32', fontSize: '14px' }}>✅ Sync concluído — <strong>{sync.importados} novos</strong>, {sync.atualizados} atualizados. Clique em <strong>"Preencher Transportadoras"</strong> para buscar os nomes.</p>
-            ) : (
-              <div>
+            {sync.erro ? <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {sync.erro}</p>
+            : sync.concluido ? <p style={{ margin: 0, color: '#2E7D32', fontSize: '14px' }}>✅ Sync concluído — <strong>{sync.importados} novos</strong>, {sync.atualizados} atualizados.</p>
+            : <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '13px', color: '#1565C0' }}>Buscando página {sync.pagina} de {sync.total || '?'} — {sync.importados} CTes importadas</span>
                   <span style={{ fontSize: '13px', color: '#1565C0', fontWeight: '600' }}>{progresso}%</span>
@@ -299,20 +247,15 @@ export default function DashboardPage() {
                 <div style={{ background: '#BBDEFB', borderRadius: '99px', height: '6px' }}>
                   <div style={{ background: '#1976D2', width: `${progresso}%`, height: '100%', borderRadius: '99px', transition: 'width 0.4s ease' }} />
                 </div>
-              </div>
-            )}
+              </div>}
           </div>
         )}
 
         {(resolver.running || resolver.concluido || resolver.erro) && (
           <div style={{ background: resolver.erro ? '#FFEBEE' : resolver.concluido ? '#F3E5F5' : '#EDE7F6', border: `1px solid ${resolver.erro ? '#FFCDD2' : '#CE93D8'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
-            {resolver.erro ? (
-              <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {resolver.erro}</p>
-            ) : resolver.concluido ? (
-              <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>✅ {resolver.resolvidos} transportadoras preenchidas{resolver.ainda_pendentes > 0 ? ` — ${resolver.ainda_pendentes} ainda sem nome (não encontradas no Omie)` : '!'}</p>
-            ) : (
-              <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>🔍 Buscando transportadoras no Omie... {resolver.resolvidos} resolvidas até agora</p>
-            )}
+            {resolver.erro ? <p style={{ margin: 0, color: '#C62828', fontSize: '14px' }}>❌ Erro: {resolver.erro}</p>
+            : resolver.concluido ? <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>✅ {resolver.resolvidos} transportadoras preenchidas{resolver.ainda_pendentes > 0 ? ` — ${resolver.ainda_pendentes} sem nome` : '!'}</p>
+            : <p style={{ margin: 0, color: '#6A1B9A', fontSize: '14px' }}>🔍 Buscando transportadoras... {resolver.resolvidos} resolvidas</p>}
           </div>
         )}
 
@@ -324,15 +267,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {(xmlImport.running || xmlImport.mensagem || xmlImport.erro) && (
-          <div style={{ background: xmlImport.erro ? '#FFEBEE' : '#E3F2FD', border: `1px solid ${xmlImport.erro ? '#FFCDD2' : '#BBDEFB'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '16px' }}>
-            <p style={{ margin: 0, color: xmlImport.erro ? '#C62828' : '#1565C0', fontSize: '14px' }}>
-              {xmlImport.erro ? `❌ Erro: ${xmlImport.erro}` : xmlImport.running ? '⟳ Processando XMLs...' : `✅ ${xmlImport.mensagem}`}
-            </p>
-          </div>
-        )}
-
-        {/* Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '28px' }}>
           {[
             { label: 'Total de CTes', valor: resumo?.total ?? '—', icon: '📦', cor: '#1A1916' },
@@ -351,27 +285,20 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Filtros */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            type="text"
-            placeholder="🔍 Buscar por número, transportadora ou destinatário..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-            style={{ flex: '1', minWidth: '240px', padding: '9px 14px', borderRadius: '8px', border: '1px solid #D8D6D0', fontSize: '13px', background: '#fff', outline: 'none' }}
-          />
+          <input type="text" placeholder="🔍 Buscar por número, transportadora ou destinatário..."
+            value={busca} onChange={e => setBusca(e.target.value)}
+            style={{ flex: '1', minWidth: '240px', padding: '9px 14px', borderRadius: '8px', border: '1px solid #D8D6D0', fontSize: '13px', background: '#fff', outline: 'none' }} />
           {['Todos', 'Faturado', 'A vencer', 'Cancelado'].map(s => (
             <button key={s} onClick={() => setFiltroStatus(s)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid', borderColor: filtroStatus === s ? '#1A1916' : '#D8D6D0', background: filtroStatus === s ? '#1A1916' : '#fff', color: filtroStatus === s ? '#fff' : '#555', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}>{s}</button>
           ))}
         </div>
 
-        {/* Tabela */}
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #E8E6E0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #F0EEE8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '14px', fontWeight: '600' }}>CT-es</span>
             <span style={{ fontSize: '12px', color: '#888780' }}>{totalCtes.toLocaleString('pt-BR')} registros no total</span>
           </div>
-
           {carregando ? (
             <div style={{ padding: '48px', textAlign: 'center', color: '#888780', fontSize: '14px' }}>Carregando CTes...</div>
           ) : ctes.length === 0 ? (
@@ -383,7 +310,7 @@ export default function DashboardPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: '#F8F7F4' }}>
-                    {['Nº CT-e', 'Transportadora', 'Origem', 'Modal', 'Valor', 'Emissão', 'Status'].map(h => (
+                    {['Nº CT-e', 'Transportadora', 'Origem → Destino', 'Modal', 'Valor', 'Emissão', 'Status'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: '#555', fontSize: '12px', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -392,11 +319,13 @@ export default function DashboardPage() {
                   {ctes.map((c, i) => {
                     const st = STATUS_STYLE[c.status] ?? STATUS_STYLE.Pendente
                     const transportadora = c.fornecedor_nome || c.remetente_nome || '—'
+                    const origem = c.uf_origem || '?'
+                    const destino = c.uf_destino || '?'
                     return (
                       <tr key={c.id} style={{ borderTop: '1px solid #F0EEE8', background: i % 2 === 0 ? '#fff' : '#FAFAF8' }}>
                         <td style={{ padding: '10px 16px', fontWeight: '600' }}>{c.numero_cte ?? '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#444', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transportadora}</td>
-                        <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.uf_origem || '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{origem} → {destino}</td>
                         <td style={{ padding: '10px 16px', color: '#666' }}>{c.modal ?? '—'}</td>
                         <td style={{ padding: '10px 16px', fontWeight: '600', color: '#2E7D32', whiteSpace: 'nowrap' }}>{c.valor_servico != null ? fmt(c.valor_servico) : '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.data_emissao ? new Date(c.data_emissao).toLocaleDateString('pt-BR') : '—'}</td>
@@ -410,7 +339,6 @@ export default function DashboardPage() {
               </table>
             </div>
           )}
-
           {totalPages > 1 && (
             <div style={{ padding: '16px 20px', borderTop: '1px solid #F0EEE8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: '#888780' }}>Página {page} de {totalPages}</span>
