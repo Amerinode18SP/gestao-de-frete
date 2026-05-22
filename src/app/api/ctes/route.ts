@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
   if (busca) {
     query = query.or(
-      `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%`
+      `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%,centro_custo_nome.ilike.%${busca}%`
     )
   }
 

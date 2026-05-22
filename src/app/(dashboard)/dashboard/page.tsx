@@ -101,20 +101,26 @@ export default function DashboardPage() {
     setCarregando(false)
   }, [EMPRESA_ID])
 
-  const carregarResumo = useCallback(async () => {
-    const res = await fetch(`/api/ctes/resumo?empresa_id=${EMPRESA_ID}`)
+  const carregarResumo = useCallback(async (status = 'Todos', q = '') => {
+    const params = new URLSearchParams({ empresa_id: EMPRESA_ID })
+    if (status !== 'Todos') params.set('status', status === 'A vencer' ? 'Pendente' : status)
+    if (q) params.set('busca', q)
+    const res = await fetch(`/api/ctes/resumo?${params}`)
     if (res.ok) setResumo(await res.json())
   }, [EMPRESA_ID])
 
   useEffect(() => {
-    carregarResumo()
+    carregarResumo('Todos', '')
     carregarCtes(1, 'Todos', '')
   }, [carregarResumo, carregarCtes])
 
   useEffect(() => {
-    const t = setTimeout(() => carregarCtes(1, filtroStatus, busca), 400)
+    const t = setTimeout(() => {
+      carregarResumo(filtroStatus, busca)
+      carregarCtes(1, filtroStatus, busca)
+    }, 400)
     return () => clearTimeout(t)
-  }, [busca, filtroStatus, carregarCtes])
+  }, [busca, filtroStatus, carregarCtes, carregarResumo])
 
   const iniciarSync = async () => {
     setSync({ running: true, pagina: 1, total: 0, importados: 0, atualizados: 0, concluido: false })
@@ -148,7 +154,7 @@ export default function DashboardPage() {
         pagina = data.proxima_pagina
         await new Promise(r => setTimeout(r, 500))
       }
-      await carregarResumo()
+      await carregarResumo(filtroStatus, busca)
       await carregarCtes(1, filtroStatus, busca)
     } catch (e: any) {
       setSync(s => ({ ...s, running: false, erro: e.message }))
