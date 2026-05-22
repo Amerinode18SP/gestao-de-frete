@@ -84,6 +84,8 @@ export interface Cte {
   criado_em: string
   atualizado_em: string
 
+  centro_custo_nome?: string
+
   // joins
   fornecedor?: Fornecedor
   centro_custo?: CentroCusto
@@ -183,6 +185,7 @@ export interface OmieCte {
   cLinkNFe?: string
   cNumNF?: string
   cCodCentroCusto?: string
+  cNomeCentroCusto?: string
 }
 
 export interface OmieListaCteResponse {
