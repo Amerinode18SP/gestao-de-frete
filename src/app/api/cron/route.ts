@@ -3,6 +3,7 @@
 // Chamado pelo GitHub Actions todo dia às 00:00 BRT
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { syncCtes } from '@/lib/omie/sync'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -20,23 +21,14 @@ export async function GET(req: NextRequest) {
   try {
     console.log('[CRON] Iniciando sync automático -', new Date().toISOString())
 
-    // URL fixa do sistema em produção
-    const baseUrl = 'https://gestao-de-frete.vercel.app'
+    const resultado = await syncCtes(empresa_id)
 
-    const res = await fetch(`${baseUrl}/api/omie/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empresa_id }),
-    })
-
-    const data = await res.json()
-
-    console.log('[CRON] Sync concluído:', JSON.stringify(data))
+    console.log('[CRON] Sync concluído:', JSON.stringify(resultado))
 
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
-      resultado: data,
+      resultado,
     })
   } catch (error: any) {
     console.error('[CRON] Erro:', error.message)
