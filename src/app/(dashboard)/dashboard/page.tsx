@@ -246,6 +246,14 @@ export default function DashboardPage() {
           <span style={{ fontSize: '20px' }}>🚛</span>
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Frete</span>
         </div>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {[{ label: 'CT-e', href: '/dashboard' }, { label: 'Relatórios', href: '/relatorios' }, { label: 'Alertas', href: '/alertas' }].map(tab => (
+            <button key={tab.href} onClick={() => router.push(tab.href)}
+              style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: 'none', cursor: 'pointer', background: tab.href === '/dashboard' ? 'rgba(255,255,255,0.12)' : 'transparent', color: tab.href === '/dashboard' ? '#F0EEE8' : '#888' }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {ultimoSync && (
             <span style={{ fontSize: '11px', color: '#888', background: '#2a2a2a', padding: '4px 10px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
