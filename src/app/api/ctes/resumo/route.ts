@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   // Base query com filtros opcionais
   const baseQuery = () => {
-    let q = supabase.from('ctes').eq('empresa_id', empresa_id)
+    let q = supabase.from('ctes').select('*').eq('empresa_id', empresa_id)
     if (status && status !== 'Todos') q = q.eq('status', status)
     if (busca) q = q.or(
       `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%,centro_custo_nome.ilike.%${busca}%`
@@ -26,13 +26,11 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  // Usar RPC para somar valor total sem limite de registros
   const [total, faturado, cancelado, pendente, valorRes] = await Promise.all([
     baseQuery().select('*', { count: 'exact', head: true }),
     baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Faturado'),
     baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Cancelado'),
     baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Pendente'),
-    // FIX: usar range para buscar TODOS os registros em lotes
     baseQuery().select('valor_servico').limit(10000),
   ])
 
