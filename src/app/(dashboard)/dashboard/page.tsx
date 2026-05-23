@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
 
 interface SyncStatus {
   running: boolean
@@ -59,6 +60,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 export default function DashboardPage() {
   const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
   const router = useRouter()
+  const { isAdmin, perfil, sair } = useAuth()
   const PAGE_SIZE = 50
 
   const [resolver, setResolver] = useState<ResolverStatus>({
@@ -260,18 +262,28 @@ export default function DashboardPage() {
               🕐 Último sync: {new Date(ultimoSync).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <label style={{ background: xmlImport.running ? '#555' : '#1565C0', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: xmlImport.running ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-            {xmlImport.running ? '⟳ Importando...' : '📂 Importar XMLs'}
-            <input type="file" accept=".zip" style={{ display: 'none' }} disabled={xmlImport.running} onChange={e => { const f = e.target.files?.[0]; if (f) importarXml(f); e.target.value = ''; }} />
-          </label>
-          <button onClick={resolverTransportadoras} disabled={resolver.running || sync.running}
-            style={{ background: resolver.running ? '#555' : resolver.concluido ? '#1B5E20' : '#7B1FA2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: resolver.running ? 'not-allowed' : 'pointer' }}>
-            {resolver.running ? `⟳ Resolvendo... (${resolver.resolvidos})` : resolver.concluido ? `✅ ${resolver.resolvidos} resolvidas` : '🔍 Preencher Transportadoras'}
-          </button>
-          <button onClick={iniciarSync} disabled={sync.running || resolver.running}
-            style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer' }}>
-            {sync.running ? `⟳ Sincronizando... ${sync.pagina}/${sync.total}` : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
-          </button>
+          {isAdmin && (
+            <>
+              <label style={{ background: xmlImport.running ? '#555' : '#1565C0', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: xmlImport.running ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {xmlImport.running ? '⟳ Importando...' : '📂 Importar XMLs'}
+                <input type="file" accept=".zip" style={{ display: 'none' }} disabled={xmlImport.running} onChange={e => { const f = e.target.files?.[0]; if (f) importarXml(f); e.target.value = ''; }} />
+              </label>
+              <button onClick={resolverTransportadoras} disabled={resolver.running || sync.running}
+                style={{ background: resolver.running ? '#555' : resolver.concluido ? '#1B5E20' : '#7B1FA2', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: resolver.running ? 'not-allowed' : 'pointer' }}>
+                {resolver.running ? `⟳ Resolvendo... (${resolver.resolvidos})` : resolver.concluido ? `✅ ${resolver.resolvidos} resolvidas` : '🔍 Preencher Transportadoras'}
+              </button>
+              <button onClick={iniciarSync} disabled={sync.running || resolver.running}
+                style={{ background: sync.running ? '#333' : '#4CAF50', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: sync.running ? 'not-allowed' : 'pointer' }}>
+                {sync.running ? `⟳ Sincronizando... ${sync.pagina}/${sync.total}` : sync.concluido ? '✅ Sincronizado' : '🔄 Sincronizar CTes'}
+              </button>
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '4px', paddingLeft: '12px', borderLeft: '1px solid #333' }}>
+            <span style={{ fontSize: '11px', color: '#888' }}>{perfil?.nome || perfil?.email || ''}</span>
+            <button onClick={sair} style={{ background: 'transparent', color: '#888', border: '1px solid #444', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
