@@ -14,6 +14,8 @@ jobs:
           echo "Iniciando sync automatico - $(date)"
           curl -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 120 \
+            --retry 2 \
             -f \
             https://gestao-de-frete.vercel.app/api/cron
-          echo "Sync concluido com sucesso!"
+          echo "Sync concluido!"
