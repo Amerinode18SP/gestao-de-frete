@@ -383,7 +383,7 @@ export default function DashboardPage() {
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{origem} → {destino}</td>
                         <td style={{ padding: '10px 16px', color: '#666' }}>{c.modal ?? '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.peso_real ? c.peso_real.toLocaleString('pt-BR') : '—'}</td>
-                        <td style={{ padding: '10px 16px', color: '#666', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{c.centro_custo_nome || '—'}</td>
+                        <td style={{ padding: '10px 16px', color: '#666', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>{c.centro_custo_nome || '—'}</td>
                         <td style={{ padding: '10px 16px', fontWeight: '600', color: '#2E7D32', whiteSpace: 'nowrap' }}>{c.valor_servico != null ? fmt(c.valor_servico) : '—'}</td>
                         <td style={{ padding: '10px 16px', color: '#666', whiteSpace: 'nowrap' }}>{c.data_emissao ? new Date(c.data_emissao).toLocaleDateString('pt-BR') : '—'}</td>
                         <td style={{ padding: '10px 16px' }}>
