@@ -18,19 +18,53 @@ export function useAuth() {
 
   useEffect(() => {
     async function carregar() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setCarregando(false); return }
+      try {
+        // Buscar sessão atual
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) {
+          setCarregando(false)
+          return
+        }
 
-      const { data } = await supabase
-        .from('perfis_usuario')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+        const user = session.user
 
-      setPerfil(data as UserProfile ?? null)
+        // Buscar perfil pelo id (UUID do auth)
+        const { data, error } = await supabase
+          .from('perfis_usuario')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (error) {
+          console.error('[useAuth] Erro ao buscar perfil:', error.message)
+        }
+
+        if (data) {
+          setPerfil(data as UserProfile)
+        } else {
+          // Fallback: buscar pelo email
+          const { data: data2 } = await supabase
+            .from('perfis_usuario')
+            .select('*')
+            .eq('email', user.email ?? '')
+            .maybeSingle()
+          setPerfil(data2 as UserProfile ?? null)
+        }
+      } catch (e) {
+        console.error('[useAuth] Erro:', e)
+      }
       setCarregando(false)
     }
     carregar()
+
+    // Ouvir mudanças de sessão
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setPerfil(null)
+        setCarregando(false)
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   const isAdmin = perfil?.papel === 'administrador'
