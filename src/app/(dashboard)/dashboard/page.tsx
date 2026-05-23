@@ -77,6 +77,7 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCtes, setTotalCtes] = useState(0)
+  const [ultimoSync, setUltimoSync] = useState<string | null>(null)
 
   const carregarCtes = useCallback(async (p = 1, status = 'Todos', q = '') => {
     setCarregando(true)
@@ -109,10 +110,21 @@ export default function DashboardPage() {
     if (res.ok) setResumo(await res.json())
   }, [EMPRESA_ID])
 
+  const carregarUltimoSync = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sync-status?empresa_id=${EMPRESA_ID}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ultimo_sync) setUltimoSync(data.ultimo_sync)
+      }
+    } catch (e) { console.error(e) }
+  }, [EMPRESA_ID])
+
   useEffect(() => {
     carregarResumo('Todos', '')
     carregarCtes(1, 'Todos', '')
-  }, [carregarResumo, carregarCtes])
+    carregarUltimoSync()
+  }, [carregarResumo, carregarCtes, carregarUltimoSync])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -156,6 +168,7 @@ export default function DashboardPage() {
       }
       await carregarResumo(filtroStatus, busca)
       await carregarCtes(1, filtroStatus, busca)
+      await carregarUltimoSync()
     } catch (e: any) {
       setSync(s => ({ ...s, running: false, erro: e.message }))
     }
@@ -226,6 +239,11 @@ export default function DashboardPage() {
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Frete</span>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {ultimoSync && (
+            <span style={{ fontSize: '11px', color: '#888', background: '#2a2a2a', padding: '4px 10px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+              🕐 Último sync: {new Date(ultimoSync).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
           <label style={{ background: xmlImport.running ? '#555' : '#1565C0', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: xmlImport.running ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
             {xmlImport.running ? '⟳ Importando...' : '📂 Importar XMLs'}
             <input type="file" accept=".zip" style={{ display: 'none' }} disabled={xmlImport.running} onChange={e => { const f = e.target.files?.[0]; if (f) importarXml(f); e.target.value = ''; }} />
