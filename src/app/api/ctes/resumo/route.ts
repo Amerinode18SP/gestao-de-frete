@@ -16,9 +16,18 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  // Base query com filtros opcionais
+  // Base query com filtros opcionais (sem select — aplicado depois)
   const baseQuery = () => {
-    let q = supabase.from('ctes').select('*').eq('empresa_id', empresa_id)
+    let q = supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id)
+    if (status && status !== 'Todos') q = q.eq('status', status)
+    if (busca) q = q.or(
+      `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%,centro_custo_nome.ilike.%${busca}%`
+    )
+    return q
+  }
+
+  const valorQuery = () => {
+    let q = supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id)
     if (status && status !== 'Todos') q = q.eq('status', status)
     if (busca) q = q.or(
       `numero_cte.ilike.%${busca}%,remetente_nome.ilike.%${busca}%,destinatario_nome.ilike.%${busca}%,centro_custo_nome.ilike.%${busca}%`
@@ -27,11 +36,11 @@ export async function GET(req: NextRequest) {
   }
 
   const [total, faturado, cancelado, pendente, valorRes] = await Promise.all([
-    baseQuery().select('*', { count: 'exact', head: true }),
-    baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Faturado'),
-    baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Cancelado'),
-    baseQuery().select('*', { count: 'exact', head: true }).eq('status', 'Pendente'),
-    baseQuery().select('valor_servico').limit(10000),
+    baseQuery(),
+    baseQuery().eq('status', 'Faturado'),
+    baseQuery().eq('status', 'Cancelado'),
+    baseQuery().eq('status', 'Pendente'),
+    valorQuery().limit(10000),
   ])
 
   const valor_total = (valorRes.data ?? []).reduce((a: number, r: any) => a + (r.valor_servico ?? 0), 0)
