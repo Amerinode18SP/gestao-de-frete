@@ -19,49 +19,23 @@ export function useAuth() {
   useEffect(() => {
     async function carregar() {
       try {
-        // Buscar sessão atual
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) {
-          setCarregando(false)
-          return
-        }
-
-        const user = session.user
-
-        // Buscar perfil pelo id (UUID do auth)
-        const { data, error } = await supabase
-          .from('perfis_usuario')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (error) {
-          console.error('[useAuth] Erro ao buscar perfil:', error.message)
-        }
-
-        if (data) {
-          setPerfil(data as UserProfile)
-        } else {
-          // Fallback: buscar pelo email
-          const { data: data2 } = await supabase
-            .from('perfis_usuario')
-            .select('*')
-            .eq('email', user.email ?? '')
-            .maybeSingle()
-          setPerfil(data2 as UserProfile ?? null)
+        const res = await fetch('/api/me')
+        if (res.ok) {
+          const data = await res.json()
+          setPerfil(data.perfil ?? null)
         }
       } catch (e) {
-        console.error('[useAuth] Erro:', e)
+        console.error('[useAuth]', e)
       }
       setCarregando(false)
     }
     carregar()
 
-    // Ouvir mudanças de sessão
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
         setPerfil(null)
-        setCarregando(false)
+      } else if (event === 'SIGNED_IN') {
+        carregar()
       }
     })
     return () => subscription.unsubscribe()
