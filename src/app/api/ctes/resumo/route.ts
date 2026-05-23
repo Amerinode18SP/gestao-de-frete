@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Query para valor total via RPC
-  const valorQuery = supabase.rpc('sum_valor_ctes_v3', {
+  const valorQuery = supabase.rpc('sum_valor_ctes_v4', {
     p_empresa_id: empresa_id,
     p_status: status && status !== 'Todos' ? status : null,
     p_busca: busca || null,
