@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface SyncStatus {
   running: boolean
@@ -57,6 +58,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 
 export default function DashboardPage() {
   const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
+  const router = useRouter()
   const PAGE_SIZE = 50
 
   const [resolver, setResolver] = useState<ResolverStatus>({
