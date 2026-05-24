@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -10,6 +11,7 @@ interface Alerta { id: string; tipo: string; mensagem: string; valor: number; li
 export default function AlertasPage() {
   const EMPRESA_ID = process.env.NEXT_PUBLIC_EMPRESA_ID ?? ''
   const router = useRouter()
+  const { isAdmin, perfil, sair } = useAuth()
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [carregando, setCarregando] = useState(true)
   const [menuAberto, setMenuAberto] = useState(false)
@@ -52,7 +54,21 @@ export default function AlertasPage() {
             </button>
           ))}
         </div>
-        <div />
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setMenuAberto(m => !m)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.08)', border: '1px solid #333', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', color: '#F0EEE8', fontSize: '12px' }}>
+            <span>👤</span><span>{perfil?.nome || 'Ana'}</span><span style={{ fontSize: '10px', opacity: 0.6 }}>▼</span>
+          </button>
+          {menuAberto && (
+            <div style={{ position: 'absolute', right: 0, top: '110%', background: '#fff', borderRadius: '10px', border: '1px solid #E8E6E0', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: '180px', zIndex: 200, overflow: 'hidden' }}>
+              {isAdmin && (<>
+                <button onClick={() => { setMenuAberto(false); router.push('/usuarios') }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1A1916' }} onMouseOver={e => (e.currentTarget.style.background='#F8F7F4')} onMouseOut={e => (e.currentTarget.style.background='none')}>👥 Gerenciar usuários</button>
+                <button onClick={() => { setMenuAberto(false); router.push('/configuracoes') }} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1A1916' }} onMouseOver={e => (e.currentTarget.style.background='#F8F7F4')} onMouseOut={e => (e.currentTarget.style.background='none')}>⚙️ Configurações</button>
+              </>)}
+              <button onClick={sair} style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#C62828', borderTop: '1px solid #F0EEE8' }} onMouseOver={e => (e.currentTarget.style.background='#FFF5F5')} onMouseOut={e => (e.currentTarget.style.background='none')}>🚪 Sair</button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main style={{ padding: '28px 32px', maxWidth: '1000px', margin: '0 auto' }}>
