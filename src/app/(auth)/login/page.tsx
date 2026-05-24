@@ -55,7 +55,7 @@ export default function LoginPage() {
             fontSize: '24px', marginBottom: '12px'
           }}>🚚</div>
           <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1916', margin: '0 0 4px' }}>
-            Gestão de Frete
+            Gestão de Log
           </h1>
           <p style={{ fontSize: '13px', color: '#888780', margin: 0 }}>
             Faça login para acessar o sistema
@@ -146,7 +146,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '12px', color: '#888780', marginTop: '16px' }}>
-          Gestão de Frete © {new Date().getFullYear()}
+          Gestão de Log © {new Date().getFullYear()}
         </p>
       </div>
     </div>
