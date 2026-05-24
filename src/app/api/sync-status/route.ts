@@ -9,10 +9,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  const { data } = await supabase.rpc('get_ultimo_sync', { p_empresa_id: empresa_id })
+  // Buscar o log mais recente com status success OU o mais recente de qualquer status
+  const { data } = await supabase
+    .from('sync_logs')
+    .select('finalizado_em, status, ctes_importados, ctes_atualizados')
+    .eq('empresa_id', empresa_id)
+    .eq('status', 'success')
+    .order('finalizado_em', { ascending: false })
+    .limit(1)
 
-  return NextResponse.json(
-    { ultimo_sync: data ?? null },
-    { headers: { 'Cache-Control': 'no-store' } }
-  )
+  const ultimo = data?.[0]
+
+  return NextResponse.json({
+    ultimo_sync: ultimo?.finalizado_em ?? null,
+    importados: ultimo?.ctes_importados ?? 0,
+    atualizados: ultimo?.ctes_atualizados ?? 0,
+  })
 }
