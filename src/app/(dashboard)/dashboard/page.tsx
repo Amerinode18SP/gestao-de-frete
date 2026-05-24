@@ -306,13 +306,22 @@ export default function DashboardPage() {
                 </div>
               </div>
               {isAdmin && (
-                <button onClick={() => { setMenuAberto(false); router.push('/usuarios') }}
-                  style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1A1916', display: 'flex', alignItems: 'center', gap: '8px' }}
-                  onMouseOver={e => (e.currentTarget.style.background = '#F8F7F4')}
-                  onMouseOut={e => (e.currentTarget.style.background = 'none')}
-                >
-                  👥 Gerenciar usuários
-                </button>
+                <>
+                  <button onClick={() => { setMenuAberto(false); router.push('/usuarios') }}
+                    style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1A1916', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    onMouseOver={e => (e.currentTarget.style.background = '#F8F7F4')}
+                    onMouseOut={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    👥 Gerenciar usuários
+                  </button>
+                  <button onClick={() => { setMenuAberto(false); router.push('/configuracoes') }}
+                    style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1A1916', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    onMouseOver={e => (e.currentTarget.style.background = '#F8F7F4')}
+                    onMouseOut={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    ⚙️ Configurações
+                  </button>
+                </>
               )}
               <button onClick={sair}
                 style={{ width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#C62828', display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px solid #F0EEE8' }}
