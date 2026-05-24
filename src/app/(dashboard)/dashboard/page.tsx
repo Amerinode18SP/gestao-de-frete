@@ -179,6 +179,7 @@ export default function DashboardPage() {
       }
       await carregarResumo(filtroStatus, busca, dataInicio, dataFim)
       await carregarCtes(1, filtroStatus, busca, dataInicio, dataFim)
+      setUltimoSync(new Date().toISOString()) // Atualiza data diretamente
       await carregarUltimoSync()
       // Auto-preencher transportadoras e centros de custo após sync
       await resolverTransportadoras()
