@@ -31,6 +31,7 @@ export default function UsuariosPage() {
   const [novoNome, setNovoNome] = useState('')
   const [novoPapel, setNovoPapel] = useState<'administrador' | 'visualizador'>('visualizador')
   const [enviando, setEnviando] = useState(false)
+  const [reenviando, setReenviando] = useState<string | null>(null)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
 
@@ -72,6 +73,26 @@ export default function UsuariosPage() {
     setEnviando(false)
   }
 
+  async function reenviarConvite(u: Usuario) {
+    setReenviando(u.id)
+    setErro('')
+    setMensagem('')
+    try {
+      const res = await fetch('/api/usuarios/convidar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: u.email, nome: u.nome, papel: u.papel, empresa_id: EMPRESA_ID })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMensagem(`✅ Convite reenviado para ${u.email}!`)
+      } else {
+        setErro(data.error || 'Erro ao reenviar convite')
+      }
+    } catch { setErro('Erro de conexão') }
+    setReenviando(null)
+  }
+
   async function alterarPapel(id: string, papel: string) {
     await fetch('/api/usuarios', {
       method: 'PATCH',
@@ -101,7 +122,7 @@ export default function UsuariosPage() {
         <div style={{ display: 'flex', gap: '4px' }}>
           {[{ label: 'CT-e', href: '/dashboard' }, { label: 'Relatórios', href: '/relatorios' }, { label: 'Alertas', href: '/alertas' }].map(tab => (
             <button key={tab.href} onClick={() => router.push(tab.href)}
-              style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: 'none', cursor: 'pointer', background: tab.href === '/usuarios' ? 'rgba(255,255,255,0.12)' : 'transparent', color: tab.href === '/usuarios' ? '#F0EEE8' : '#888' }}>
+              style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: 'none', cursor: 'pointer', background: 'transparent', color: '#888' }}>
               {tab.label}
             </button>
           ))}
@@ -122,7 +143,7 @@ export default function UsuariosPage() {
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{perfil?.email}</div>
                 <div style={{ marginTop: '4px' }}>
                   <span style={{ fontSize: '10px', background: perfil?.papel === 'administrador' ? '#E6F1FB' : '#EAF3DE', color: perfil?.papel === 'administrador' ? '#0C447C' : '#27500A', padding: '2px 8px', borderRadius: '99px', fontWeight: '500' }}>
-                    {perfil?.papel === 'administrador' ? '👑 Administrador' : '👁️ Visualizador'}
+                    {perfil?.papel === 'administrador' ? '👑 Administrador' : '👁 Visualizador'}
                   </span>
                 </div>
               </div>
@@ -147,7 +168,7 @@ export default function UsuariosPage() {
         </div>
       </header>
 
-      <main style={{ padding: '28px 32px', maxWidth: '900px', margin: '0 auto' }}>
+      <main style={{ padding: '28px 32px', maxWidth: '960px', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h1 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 4px' }}>Usuários</h1>
@@ -164,6 +185,12 @@ export default function UsuariosPage() {
         {mensagem && (
           <div style={{ background: '#EAF3DE', border: '1px solid #B3D48A', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#27500A' }}>
             {mensagem}
+          </div>
+        )}
+
+        {erro && (
+          <div style={{ background: '#FFEBEE', border: '1px solid #FFCDD2', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#C62828' }}>
+            {erro}
           </div>
         )}
 
@@ -198,7 +225,7 @@ export default function UsuariosPage() {
                       <td style={{ padding: '12px 16px', color: '#666' }}>{u.email}</td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{ ...cor, padding: '3px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: '500' }}>
-                          {u.papel === 'administrador' ? '👑 Administrador' : '👁️ Visualizador'}
+                          {u.papel === 'administrador' ? '👑 Administrador' : '👁 Visualizador'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
@@ -209,7 +236,7 @@ export default function UsuariosPage() {
                       {isAdmin && (
                         <td style={{ padding: '12px 16px' }}>
                           {!isSelf && (
-                            <div style={{ display: 'flex', gap: '6px' }}>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                               <select
                                 value={u.papel}
                                 onChange={e => alterarPapel(u.id, e.target.value)}
@@ -221,6 +248,12 @@ export default function UsuariosPage() {
                               <button onClick={() => alterarAtivo(u.id, !u.ativo)}
                                 style={{ padding: '4px 10px', fontSize: '11px', border: `1px solid ${u.ativo ? '#E8AEAE' : '#D4D2CA'}`, borderRadius: '6px', background: '#fff', cursor: 'pointer', color: u.ativo ? '#791F1F' : '#444' }}>
                                 {u.ativo ? 'Desativar' : 'Ativar'}
+                              </button>
+                              <button
+                                onClick={() => reenviarConvite(u)}
+                                disabled={reenviando === u.id}
+                                style={{ padding: '4px 10px', fontSize: '11px', border: '1px solid #C7D2FE', borderRadius: '6px', background: '#F0F4FF', cursor: reenviando === u.id ? 'not-allowed' : 'pointer', color: '#4f46e5', fontWeight: '500' }}>
+                                {reenviando === u.id ? 'Enviando...' : '✉ Reenviar convite'}
                               </button>
                             </div>
                           )}
@@ -260,7 +293,7 @@ export default function UsuariosPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   {[
                     { valor: 'administrador', label: '👑 Administrador', desc: 'Acesso total' },
-                    { valor: 'visualizador', label: '👁️ Visualizador', desc: 'Só leitura' },
+                    { valor: 'visualizador', label: '👁 Visualizador', desc: 'Só leitura' },
                   ].map(p => (
                     <div key={p.valor} onClick={() => setNovoPapel(p.valor as any)}
                       style={{ padding: '12px', border: `1.5px solid ${novoPapel === p.valor ? '#1A1916' : '#E2E0D8'}`, borderRadius: '8px', cursor: 'pointer', background: novoPapel === p.valor ? '#F8F7F4' : '#fff', textAlign: 'center' }}>
@@ -270,8 +303,6 @@ export default function UsuariosPage() {
                   ))}
                 </div>
               </div>
-
-              {erro && <div style={{ background: '#FFEBEE', border: '1px solid #FFCDD2', borderRadius: '8px', padding: '10px', marginBottom: '14px', fontSize: '12px', color: '#C62828' }}>{erro}</div>}
 
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setModalAberto(false)}
