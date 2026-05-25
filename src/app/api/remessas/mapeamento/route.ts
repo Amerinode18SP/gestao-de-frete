@@ -1,116 +1,98 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
 
+const ESTADOS: Record<string, string> = {
+  AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',
+  CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',
+  MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',
+  PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',
+  RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',
+  RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',
+  SE:'Sergipe',TO:'Tocantins',
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const empresaId = searchParams.get('empresa_id') || process.env.NEXT_PUBLIC_EMPRESA_ID!
-    const modal      = searchParams.get('modal')
-    const transp     = searchParams.get('transportadora')
-    const cc         = searchParams.get('centro_custo')
-    const mes        = searchParams.get('mes')
-    const ano        = searchParams.get('ano')
+    const empresaId   = searchParams.get('empresa_id') || process.env.NEXT_PUBLIC_EMPRESA_ID!
+    const modalFiltro = searchParams.get('modal')
+    const transp      = searchParams.get('transportadora')
+    const cc          = searchParams.get('centro_custo')
+    const mes         = searchParams.get('mes')
+    const ano         = searchParams.get('ano')
 
     const supabase = createSupabaseAdmin()
 
-    // Descobre os nomes reais das colunas de valor e data na tabela ctes
-    const { data: cols } = await supabase
-      .from('information_schema.columns' as any)
-      .select('column_name')
-      .eq('table_name', 'ctes')
-      .in('column_name', [
-        'valor','value','valor_total','valor_cte','valor_frete',
-        'data_emissao','data_vencimento','data_lancamento',
-        'estado_destino','uf_destino','uf','estado',
-        'modal','tipo_modal','tipo_frete',
-        'mes_emissao','ano_emissao',
-      ])
-
-    const colNames = (cols || []).map((c: any) => c.column_name)
-
-    // Campo valor
-    const campoValor = ['valor_total','valor_cte','valor_frete','valor','value']
-      .find(c => colNames.includes(c)) || 'valor_documento'
-
-    // Campo estado destino  
-    const campoEstado = ['estado_destino','uf_destino','uf','estado']
-      .find(c => colNames.includes(c)) || 'estado_destino'
-
-    // Campo modal
-    const campoModal = ['modal','tipo_modal','tipo_frete']
-      .find(c => colNames.includes(c)) || 'modal'
-
-    // Campo data
-    const campoData = ['data_emissao','data_vencimento','data_lancamento']
-      .find(c => colNames.includes(c)) || 'data_emissao'
-
-    // Monta select dinâmico
-    const selectFields = [
-      'id',
-      campoValor,
-      campoEstado,
-      campoModal,
-      campoData,
-      'fornecedor:fornecedores(nome)',
-      'centro_custo:centros_custo(nome)',
-    ].join(',\n        ')
-
     let query = supabase
       .from('ctes')
-      .select(selectFields)
+      .select(`
+        id,
+        valor_servico,
+        uf_destino,
+        modal,
+        data_emissao,
+        status,
+        fornecedores ( nome ),
+        centros_custo ( nome )
+      `)
       .eq('empresa_id', empresaId)
-      .not(campoEstado, 'is', null)
       .neq('status', 'Cancelado')
+      .not('uf_destino', 'is', null)
+      .not('valor_servico', 'is', null)
 
-    if (modal) query = query.eq(campoModal, modal)
+    if (modalFiltro) query = query.eq('modal', modalFiltro)
 
     const { data: ctes, error } = await query
-    if (error) throw new Error(`Query error: ${error.message} | campos: valor=${campoValor}, estado=${campoEstado}`)
+    if (error) throw new Error(error.message)
 
-    // Filtra em memória (transportadora, cc, mes, ano)
-    const filtered = (ctes || []).filter((c: any) => {
-      const nomeTransp = c.fornecedor?.nome || ''
-      const nomeCC     = c.centro_custo?.nome || ''
-      const dataStr    = c[campoData] || ''
-      const cMes       = dataStr ? new Date(dataStr).getMonth() + 1 : null
-      const cAno       = dataStr ? new Date(dataStr).getFullYear() : null
+    type Row = {
+      id: string
+      valor_servico: number | null
+      uf_destino: string | null
+      modal: string | null
+      data_emissao: string | null
+      status: string | null
+      fornecedores: { nome: string } | null
+      centros_custo: { nome: string } | null
+    }
+
+    const rows = (ctes || []) as Row[]
+
+    // Listas para os selects (sem filtro de transp/cc/mes/ano)
+    const transpSet = new Set<string>()
+    const ccSet     = new Set<string>()
+    for (const r of rows) {
+      if (r.fornecedores?.nome)  transpSet.add(r.fornecedores.nome)
+      if (r.centros_custo?.nome) ccSet.add(r.centros_custo.nome)
+    }
+
+    // Filtros em memória
+    const filtered = rows.filter(r => {
+      const nomeT = r.fornecedores?.nome  || ''
+      const nomeC = r.centros_custo?.nome || ''
+      const data  = r.data_emissao ? new Date(r.data_emissao) : null
+      const rMes  = data ? String(data.getMonth() + 1) : ''
+      const rAno  = data ? String(data.getFullYear())  : ''
       return (
-        (!transp || nomeTransp === transp) &&
-        (!cc     || nomeCC === cc) &&
-        (!mes    || String(cMes) === mes) &&
-        (!ano    || String(cAno) === ano)
+        (!transp || nomeT === transp) &&
+        (!cc     || nomeC === cc)     &&
+        (!mes    || rMes  === mes)    &&
+        (!ano    || rAno  === ano)
       )
     })
 
-    const ESTADOS: Record<string, string> = {
-      AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',
-      CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',
-      MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',
-      PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',
-      RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',
-      RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',
-      SE:'Sergipe',TO:'Tocantins',
-    }
+    // Agrega por estado
+    const byState: Record<string, { name:string; uf:string; ctes:number; value:number; modal:string; modalCounts:Record<string,number> }> = {}
+    const byModal: Record<string, number> = {}
+    const byCC:    Record<string, number> = {}
 
-    const byState: Record<string, any> = {}
-    const byModal:  Record<string, number> = {}
-    const byCC:     Record<string, number> = {}
-    const transpSet = new Set<string>()
-    const ccSet     = new Set<string>()
-
-    // Coleta transportadoras/cc de TODOS os registros (sem filtro de transp/cc)
-    for (const c of (ctes || [])) {
-      if (c.fornecedor?.nome)   transpSet.add(c.fornecedor.nome)
-      if (c.centro_custo?.nome) ccSet.add(c.centro_custo.nome)
-    }
-
-    for (const c of filtered) {
-      const uf  = String(c[campoEstado] || '').toUpperCase().trim()
+    for (const r of filtered) {
+      const uf  = (r.uf_destino || '').toUpperCase().trim()
       if (!uf || !ESTADOS[uf]) continue
 
-      const val = Number(c[campoValor]) || 0
-      const mod = String(c[campoModal]  || 'Rodoviário')
-      const ccN = c.centro_custo?.nome  || 'Sem C.C.'
+      const val = Number(r.valor_servico) || 0
+      const mod = r.modal || 'Rodoviário'
+      const ccN = r.centros_custo?.nome || 'Sem C.C.'
 
       if (!byState[uf]) byState[uf] = { name: ESTADOS[uf], uf, ctes: 0, value: 0, modal: '', modalCounts: {} }
       byState[uf].ctes  += 1
@@ -118,21 +100,21 @@ export async function GET(request: Request) {
       byState[uf].modalCounts[mod] = (byState[uf].modalCounts[mod] || 0) + 1
 
       byModal[mod] = (byModal[mod] || 0) + val
-      byCC[ccN]    = (byCC[ccN]    || 0) + val
+      byCC[ccN]    = (byCC[ccN]   || 0) + val
     }
 
+    // Modal predominante por estado
     for (const uf in byState) {
       const mc = byState[uf].modalCounts
-      byState[uf].modal = Object.entries(mc).sort((a:any,b:any)=>b[1]-a[1])[0]?.[0] || 'Rodoviário'
-      delete byState[uf].modalCounts
+      byState[uf].modal = Object.entries(mc).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Rodoviário'
+      delete (byState[uf] as any).modalCounts
     }
 
-    const sorted     = Object.values(byState).sort((a:any,b:any) => b.value - a.value)
-    const totalValue = filtered.reduce((s:number,c:any) => s + (Number(c[campoValor])||0), 0)
+    const sorted     = Object.values(byState).sort((a, b) => b.value - a.value)
+    const totalValue = filtered.reduce((s, r) => s + (Number(r.valor_servico) || 0), 0)
     const totalCtes  = filtered.length
 
     return NextResponse.json({
-      debug: { campoValor, campoEstado, campoModal, campoData, totalRegistros: (ctes||[]).length },
       summary: {
         totalValue:  Math.round(totalValue),
         totalCtes,
@@ -141,8 +123,12 @@ export async function GET(request: Request) {
         topState:    sorted[0] || null,
       },
       byState: sorted,
-      byModal: Object.entries(byModal).map(([label,value]) => ({ label, value: Math.round(value as number) })),
-      byCC:    Object.entries(byCC).sort((a,b)=>(b[1] as number)-(a[1] as number)).map(([label,value]) => ({ label, value: Math.round(value as number) })),
+      byModal: Object.entries(byModal)
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, value]) => ({ label, value: Math.round(value) })),
+      byCC: Object.entries(byCC)
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, value]) => ({ label, value: Math.round(value) })),
       transportadoras: Array.from(transpSet).sort(),
       centrosCusto:    Array.from(ccSet).sort(),
     })
