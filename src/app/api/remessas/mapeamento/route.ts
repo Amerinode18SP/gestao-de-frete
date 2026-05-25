@@ -11,6 +11,22 @@ const ESTADOS: Record<string, string> = {
   SE:'Sergipe',TO:'Tocantins',
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function nomeFornecedor(r: any): string {
+  const f = r.fornecedores
+  if (!f) return ''
+  if (Array.isArray(f)) return f[0]?.nome || ''
+  return f.nome || ''
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function nomeCC(r: any): string {
+  const c = r.centros_custo
+  if (!c) return ''
+  if (Array.isArray(c)) return c[0]?.nome || ''
+  return c.nome || ''
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -23,7 +39,8 @@ export async function GET(request: Request) {
 
     const supabase = createSupabaseAdmin()
 
-    let query = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query: any = supabase
       .from('ctes')
       .select(`
         id,
@@ -45,31 +62,23 @@ export async function GET(request: Request) {
     const { data: ctes, error } = await query
     if (error) throw new Error(error.message)
 
-    type Row = {
-      id: string
-      valor_servico: number | null
-      uf_destino: string | null
-      modal: string | null
-      data_emissao: string | null
-      status: string | null
-      fornecedores: { nome: string } | null
-      centros_custo: { nome: string } | null
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = ctes || []
 
-    const rows = (ctes || []) as Row[]
-
-    // Listas para os selects (sem filtro de transp/cc/mes/ano)
+    // Listas para os selects (todos os registros, sem filtro)
     const transpSet = new Set<string>()
     const ccSet     = new Set<string>()
     for (const r of rows) {
-      if (r.fornecedores?.nome)  transpSet.add(r.fornecedores.nome)
-      if (r.centros_custo?.nome) ccSet.add(r.centros_custo.nome)
+      const t = nomeFornecedor(r)
+      const c = nomeCC(r)
+      if (t) transpSet.add(t)
+      if (c) ccSet.add(c)
     }
 
     // Filtros em memória
     const filtered = rows.filter(r => {
-      const nomeT = r.fornecedores?.nome  || ''
-      const nomeC = r.centros_custo?.nome || ''
+      const nomeT = nomeFornecedor(r)
+      const nomeC = nomeCC(r)
       const data  = r.data_emissao ? new Date(r.data_emissao) : null
       const rMes  = data ? String(data.getMonth() + 1) : ''
       const rAno  = data ? String(data.getFullYear())  : ''
@@ -82,19 +91,24 @@ export async function GET(request: Request) {
     })
 
     // Agrega por estado
-    const byState: Record<string, { name:string; uf:string; ctes:number; value:number; modal:string; modalCounts:Record<string,number> }> = {}
+    const byState: Record<string, {
+      name: string; uf: string; ctes: number; value: number
+      modal: string; modalCounts: Record<string, number>
+    }> = {}
     const byModal: Record<string, number> = {}
     const byCC:    Record<string, number> = {}
 
     for (const r of filtered) {
-      const uf  = (r.uf_destino || '').toUpperCase().trim()
+      const uf  = String(r.uf_destino || '').toUpperCase().trim()
       if (!uf || !ESTADOS[uf]) continue
 
       const val = Number(r.valor_servico) || 0
-      const mod = r.modal || 'Rodoviário'
-      const ccN = r.centros_custo?.nome || 'Sem C.C.'
+      const mod = String(r.modal || 'Rodoviário')
+      const ccN = nomeCC(r) || 'Sem C.C.'
 
-      if (!byState[uf]) byState[uf] = { name: ESTADOS[uf], uf, ctes: 0, value: 0, modal: '', modalCounts: {} }
+      if (!byState[uf]) {
+        byState[uf] = { name: ESTADOS[uf], uf, ctes: 0, value: 0, modal: '', modalCounts: {} }
+      }
       byState[uf].ctes  += 1
       byState[uf].value += val
       byState[uf].modalCounts[mod] = (byState[uf].modalCounts[mod] || 0) + 1
@@ -103,7 +117,6 @@ export async function GET(request: Request) {
       byCC[ccN]    = (byCC[ccN]   || 0) + val
     }
 
-    // Modal predominante por estado
     for (const uf in byState) {
       const mc = byState[uf].modalCounts
       byState[uf].modal = Object.entries(mc).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Rodoviário'
