@@ -153,6 +153,148 @@ export default function MapeamentoPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+
+  // ── Exportar Excel ──────────────────────────────────────
+  const exportarExcel = () => {
+    if (!data?.byState?.length) return
+    const s = data.summary
+    const rows = [
+      ['Mapeamento de Remessas — Gestão de Log'],
+      ['Gerado em:', new Date().toLocaleString('pt-BR')],
+      [],
+      ['RESUMO'],
+      ['Valor Total', s.totalValue.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})],
+      ['Total CT-es', s.totalCtes],
+      ['Estados', s.stateCount],
+      ['Ticket Médio', s.ticketMedio.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})],
+      ['Estado Maior Gasto', s.topState?.name || '—'],
+      [],
+      ['DETALHAMENTO POR ESTADO'],
+      ['#','Estado','UF','CT-es','Modal Predom.','Valor Total','Ticket Médio','Participação %'],
+      ...(data.byState || []).map((d, i) => {
+        const pct = s.totalValue > 0 ? Math.round(d.value / s.totalValue * 100) : 0
+        const ticket = d.ctes > 0 ? Math.round(d.value / d.ctes) : 0
+        return [
+          i + 1, d.name, d.uf, d.ctes, d.modal,
+          d.value.toLocaleString('pt-BR', {style:'currency',currency:'BRL'}),
+          ticket.toLocaleString('pt-BR', {style:'currency',currency:'BRL'}),
+          pct + '%'
+        ]
+      }),
+      [],
+      ['GASTO POR MODAL'],
+      ['Modal', 'Valor'],
+      ...(data.byModal || []).map(m => [m.label, m.value.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})]),
+      [],
+      ['POR CENTRO DE CUSTO'],
+      ['Centro de Custo', 'Valor'],
+      ...(data.byCC || []).map(c => [c.label, c.value.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})]),
+    ]
+
+    // Monta CSV (compatível com Excel)
+    const csv = rows.map(row =>
+      row.map(cell => {
+        const s = String(cell ?? '')
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? '"' + s.replace(/"/g, '""') + '"'
+          : s
+      }).join(';')
+    ).join('\n')
+
+    const bom = '\uFEFF' // BOM para Excel reconhecer UTF-8
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'mapeamento-remessas-' + new Date().toISOString().slice(0,10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Exportar PDF ─────────────────────────────────────────
+  const exportarPDF = () => {
+    if (!data?.byState?.length) return
+    const s = data.summary
+    const linhasEstado = (data.byState || []).map((d, i) => {
+      const pct = s.totalValue > 0 ? Math.round(d.value / s.totalValue * 100) : 0
+      const ticket = d.ctes > 0 ? Math.round(d.value / d.ctes) : 0
+      return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+        <td>${i+1}</td><td>${d.name}</td><td>${d.uf}</td><td>${d.ctes}</td>
+        <td>${d.modal}</td>
+        <td>${d.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+        <td>${ticket.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+        <td>${pct}%</td>
+      </tr>`
+    }).join('')
+
+    const linhasModal = (data.byModal || []).map(m =>
+      `<tr><td>${m.label}</td><td>${m.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td></tr>`
+    ).join('')
+
+    const linhasCC = (data.byCC || []).slice(0, 15).map(c =>
+      `<tr><td>${c.label}</td><td>${c.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td></tr>`
+    ).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Mapeamento de Remessas</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1916; padding: 20px; }
+  h1 { font-size: 18px; color: #1a1916; margin-bottom: 4px; }
+  .sub { font-size: 11px; color: #888; margin-bottom: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: #f8f7f4; border: 1px solid #e8e6e0; border-radius: 8px; padding: 10px 14px; }
+  .kpi-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .kpi-val { font-size: 16px; font-weight: 700; color: #1a1916; }
+  h2 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; border-bottom: 1px solid #e8e6e0; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  th { background: #1a1916; color: #fff; padding: 6px 8px; text-align: left; font-size: 9px; text-transform: uppercase; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f0eee8; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .footer { margin-top: 20px; font-size: 9px; color: #aaa; text-align: center; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>🚛 Mapeamento de Remessas</h1>
+<div class="sub">Gestão de Log · Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Valor Total Remessas</div><div class="kpi-val">${s.totalValue.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div><div style="font-size:10px;color:#888;margin-top:2px">${s.totalCtes} CT-es · ${s.stateCount} estados</div></div>
+  <div class="kpi"><div class="kpi-label">Ticket Médio / CT-e</div><div class="kpi-val">${s.ticketMedio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div></div>
+  <div class="kpi"><div class="kpi-label">Estado de Maior Gasto</div><div class="kpi-val">${s.topState?.name||'—'}</div><div style="font-size:10px;color:#888;margin-top:2px">${s.topState?s.topState.value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):''}</div></div>
+  <div class="kpi"><div class="kpi-label">Total de Estados</div><div class="kpi-val">${s.stateCount}</div></div>
+</div>
+
+<h2>Detalhamento por Estado</h2>
+<table>
+  <thead><tr><th>#</th><th>Estado</th><th>UF</th><th>CT-es</th><th>Modal</th><th>Valor Total</th><th>Ticket Médio</th><th>%</th></tr></thead>
+  <tbody>${linhasEstado}</tbody>
+</table>
+
+<div class="two-col" style="margin-top:20px">
+  <div>
+    <h2>Gasto por Modal</h2>
+    <table><thead><tr><th>Modal</th><th>Valor</th></tr></thead><tbody>${linhasModal}</tbody></table>
+  </div>
+  <div>
+    <h2>Por Centro de Custo (top 15)</h2>
+    <table><thead><tr><th>Centro de Custo</th><th>Valor</th></tr></thead><tbody>${linhasCC}</tbody></table>
+  </div>
+</div>
+
+<div class="footer">Gestão de Log · gestao-de-log.vercel.app · ${new Date().toLocaleDateString('pt-BR')}</div>
+<script>window.onload = () => { window.print(); }</script>
+</body></html>`
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  }
   const s = data?.summary
   const selStyle = { width:'100%', fontSize:12, padding:'7px 10px', border:'1px solid #D8D6D0', borderRadius:8, background:'#fff', color:'#1A1916', cursor:'pointer' } as const
   const cardStyle = { background:'#fff', border:'1px solid #E8E6E0', borderRadius:12, padding:'1rem', opacity: loading ? 0.6 : 1, transition:'opacity .2s' } as const
@@ -175,6 +317,16 @@ export default function MapeamentoPage() {
               {tab.label}
             </button>
           ))}
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <button onClick={exportarExcel} disabled={loading || !data?.byState?.length}
+            style={{background:'#1565C0', color:'#fff', border:'none', borderRadius:'8px', padding:'6px 14px', fontSize:'12px', fontWeight:'600', cursor:'pointer', display:'flex', alignItems:'center', gap:6, opacity: loading||!data?.byState?.length ? 0.5 : 1}}>
+            📊 Excel
+          </button>
+          <button onClick={exportarPDF} disabled={loading || !data?.byState?.length}
+            style={{background:'#C62828', color:'#fff', border:'none', borderRadius:'8px', padding:'6px 14px', fontSize:'12px', fontWeight:'600', cursor:'pointer', display:'flex', alignItems:'center', gap:6, opacity: loading||!data?.byState?.length ? 0.5 : 1}}>
+            📄 PDF
+          </button>
         </div>
         <div style={{position:'relative'}}>
           <button onClick={() => setMenuAberto(m => !m)}
