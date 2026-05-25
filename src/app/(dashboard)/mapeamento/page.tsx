@@ -43,7 +43,7 @@ const BRAZIL_PATHS: Record<string,{path:string;cx:number;cy:number}> = {
   DF:{path:'M 272 218 L 280 216 L 284 222 L 278 226 L 272 224 Z',cx:278,cy:221},
 }
 
-function fmt(v: number) { return 'R$ ' + Math.round(v).toLocaleString('pt-BR') }
+function fmt(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
 function getColor(value: number, maxVal: number): string {
   if (!value || maxVal === 0) return '#e5e7eb'
   return BLUE_STOPS[Math.min(4, Math.floor(Math.pow(value / maxVal, 0.6) * 5))]
