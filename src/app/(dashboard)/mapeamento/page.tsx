@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
 
 interface StateData { name: string; uf: string; ctes: number; value: number; modal: string }
 interface ChartItem { label: string; value: number }
@@ -9,7 +11,7 @@ interface MapData { summary: Summary; byState: StateData[]; byModal: ChartItem[]
 
 const BLUE_STOPS = ['#dbeafe','#93c5fd','#3b82f6','#1d4ed8','#1e3a8a']
 const MODAL_COLORS: Record<string,string> = { Rodoviário:'#1a56a0', Aéreo:'#2d8a60', Marítimo:'#b5742a' }
-const CC_COLORS: Record<string,string> = { 'Logística SP':'#1a56a0','Logística RJ':'#2d8a60','Filial MG':'#b5742a','E-commerce':'#884cb5' }
+const CC_COLORS: Record<string,string> = {}
 
 const BRAZIL_PATHS: Record<string,{path:string;cx:number;cy:number}> = {
   AC:{path:'M 52 228 L 60 220 L 74 218 L 86 224 L 94 230 L 96 240 L 88 248 L 76 250 L 62 248 L 52 238 Z',cx:74,cy:234},
@@ -42,37 +44,38 @@ const BRAZIL_PATHS: Record<string,{path:string;cx:number;cy:number}> = {
 }
 
 function fmt(v: number) { return 'R$ ' + Math.round(v).toLocaleString('pt-BR') }
-
-function getStateColor(value: number, maxVal: number): string {
+function getColor(value: number, maxVal: number): string {
   if (!value || maxVal === 0) return '#e5e7eb'
-  const i = Math.min(4, Math.floor(Math.pow(value / maxVal, 0.6) * 5))
-  return BLUE_STOPS[i]
+  return BLUE_STOPS[Math.min(4, Math.floor(Math.pow(value / maxVal, 0.6) * 5))]
+}
+function getIdx(value: number, maxVal: number): number {
+  if (!value || maxVal === 0) return -1
+  return Math.min(4, Math.floor(Math.pow(value / maxVal, 0.6) * 5))
 }
 
 function BrazilMap({ byState }: { byState: StateData[] }) {
   const [tooltip, setTooltip] = useState<{text:string;x:number;y:number}|null>(null)
-  const stateMap = Object.fromEntries(byState.map(d => [d.uf, d]))
+  const sm = Object.fromEntries(byState.map(d => [d.uf, d]))
   const maxVal = Math.max(...byState.map(d => d.value), 1)
   return (
     <div style={{position:'relative'}}>
       <svg viewBox="0 0 420 480" style={{width:'100%',display:'block'}}>
         {Object.entries(BRAZIL_PATHS).map(([uf, pd]) => {
-          const d = stateMap[uf]
-          const fill = d ? getStateColor(d.value, maxVal) : '#e5e7eb'
-          const idx = d ? Math.min(4, Math.floor(Math.pow(d.value/maxVal,0.6)*5)) : -1
+          const d = sm[uf]
           return (
             <g key={uf} style={{cursor:d?'pointer':'default'}}
-              onMouseEnter={e => d && setTooltip({text:`${d.name} (${uf})\n${fmt(d.value)} · ${d.ctes} CT-es\nModal: ${d.modal}`,x:(e as any).clientX,y:(e as any).clientY})}
-              onMouseMove={e => d && tooltip && setTooltip(t=>t?{...t,x:(e as any).clientX,y:(e as any).clientY}:null)}
-              onMouseLeave={()=>setTooltip(null)}>
-              <path d={pd.path} fill={fill} stroke="#fff" strokeWidth={1}/>
-              <text x={pd.cx} y={pd.cy+3} textAnchor="middle" fontSize={uf==='DF'?5:9} fontWeight={500} fill={idx>=3?'#fff':'#374151'} pointerEvents="none">{uf}</text>
+              onMouseEnter={e => d && setTooltip({text:d.name+' ('+uf+')\n'+fmt(d.value)+' · '+d.ctes+' CT-es\nModal: '+d.modal,x:(e as any).clientX,y:(e as any).clientY})}
+              onMouseMove={e => tooltip && setTooltip(t => t?{...t,x:(e as any).clientX,y:(e as any).clientY}:null)}
+              onMouseLeave={() => setTooltip(null)}>
+              <path d={pd.path} fill={d?getColor(d.value,maxVal):'#e5e7eb'} stroke="#fff" strokeWidth={1}/>
+              <text x={pd.cx} y={pd.cy+3} textAnchor="middle" fontSize={uf==='DF'?5:9} fontWeight={500}
+                fill={d&&getIdx(d.value,maxVal)>=3?'#fff':'#374151'} pointerEvents="none">{uf}</text>
             </g>
           )
         })}
       </svg>
       {tooltip && (
-        <div style={{position:'fixed',left:tooltip.x+12,top:tooltip.y-10,background:'var(--color-background-primary)',border:'0.5px solid var(--color-border-secondary)',borderRadius:8,padding:'8px 12px',fontSize:12,lineHeight:1.6,pointerEvents:'none',zIndex:99,whiteSpace:'pre-line',boxShadow:'0 2px 8px rgba(0,0,0,.08)'}}>
+        <div style={{position:'fixed',left:tooltip.x+12,top:tooltip.y-10,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,padding:'8px 12px',fontSize:12,lineHeight:1.6,pointerEvents:'none',zIndex:999,whiteSpace:'pre-line',boxShadow:'0 2px 8px rgba(0,0,0,.1)'}}>
           {tooltip.text}
         </div>
       )}
@@ -81,18 +84,18 @@ function BrazilMap({ byState }: { byState: StateData[] }) {
 }
 
 function BarChart({ items, colorMap }: { items: ChartItem[]; colorMap: Record<string,string> }) {
-  if (!items.length) return <p style={{fontSize:13,color:'var(--color-text-secondary)',padding:'1rem 0'}}>—</p>
-  const maxV = Math.max(...items.map(i=>i.value))
+  if (!items.length) return <p style={{fontSize:13,color:'#888',padding:'1rem 0'}}>—</p>
+  const maxV = Math.max(...items.map(i => i.value))
   return (
     <div>
       {items.map(item => {
         const pct = Math.round(item.value/maxV*100)
-        const color = colorMap[item.label]||'#888'
+        const color = colorMap[item.label] || '#1a56a0'
         return (
           <div key={item.label} style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-            <span style={{fontSize:12,color:'var(--color-text-secondary)',width:90,flexShrink:0,textAlign:'right',lineHeight:1.3}}>{item.label}</span>
-            <div style={{flex:1,background:'var(--color-background-secondary)',borderRadius:3,height:22,overflow:'hidden'}}>
-              <div style={{width:`${pct}%`,height:'100%',borderRadius:3,background:color+'20',borderLeft:`3px solid ${color}`,display:'flex',alignItems:'center',paddingLeft:7}}>
+            <span style={{fontSize:12,color:'#888',width:92,flexShrink:0,textAlign:'right',lineHeight:1.3}}>{item.label}</span>
+            <div style={{flex:1,background:'#f3f4f6',borderRadius:3,height:22,overflow:'hidden'}}>
+              <div style={{width:pct+'%',height:'100%',borderRadius:3,background:color+'20',borderLeft:'3px solid '+color,display:'flex',alignItems:'center',paddingLeft:7}}>
                 <span style={{fontSize:11,fontWeight:500,color,whiteSpace:'nowrap'}}>{fmt(item.value)}</span>
               </div>
             </div>
@@ -105,7 +108,18 @@ function BarChart({ items, colorMap }: { items: ChartItem[]; colorMap: Record<st
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+// Gera cor consistente por label
+function labelColor(label: string): string {
+  const palette = ['#1a56a0','#2d8a60','#b5742a','#884cb5','#c0392b','#16a085','#d35400','#2980b9']
+  let hash = 0
+  for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash)
+  return palette[Math.abs(hash) % palette.length]
+}
+
 export default function MapeamentoPage() {
+  const router = useRouter()
+  const { perfil, sair } = useAuth()
+  const [menuAberto, setMenuAberto] = useState(false)
   const empresaId = process.env.NEXT_PUBLIC_EMPRESA_ID!
   const [data, setData] = useState<MapData|null>(null)
   const [loading, setLoading] = useState(true)
@@ -121,143 +135,218 @@ export default function MapeamentoPage() {
   const fetchData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const params = new URLSearchParams({empresa_id:empresaId})
-      if (modal!=='all') params.set('modal',modal)
-      if (transportadora!=='all') params.set('transportadora',transportadora)
-      if (centroCusto!=='all') params.set('centro_custo',centroCusto)
-      if (mes!=='all') params.set('mes',mes)
-      if (ano!=='all') params.set('ano',ano)
-      const res = await fetch(`/api/remessas/mapeamento?${params}`)
+      const p = new URLSearchParams({empresa_id: empresaId})
+      if (modal !== 'all') p.set('modal', modal)
+      if (transportadora !== 'all') p.set('transportadora', transportadora)
+      if (centroCusto !== 'all') p.set('centro_custo', centroCusto)
+      if (mes !== 'all') p.set('mes', mes)
+      if (ano !== 'all') p.set('ano', ano)
+      const res = await fetch('/api/remessas/mapeamento?' + p)
       if (!res.ok) throw new Error(await res.text())
       const json: MapData = await res.json()
       setData(json)
-      setTransportadoras(json.transportadoras||[])
-      setCentrosCusto(json.centrosCusto||[])
-    } catch(e:any) { setError(e.message) }
+      setTransportadoras(json.transportadoras || [])
+      setCentrosCusto(json.centrosCusto || [])
+    } catch(e: any) { setError(e.message) }
     finally { setLoading(false) }
-  }, [empresaId,modal,transportadora,centroCusto,mes,ano])
+  }, [empresaId, modal, transportadora, centroCusto, mes, ano])
 
-  useEffect(()=>{ fetchData() },[fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const s = data?.summary
-  const card = (style: any) => ({background:'var(--color-background-primary)',border:'0.5px solid var(--color-border-tertiary)',borderRadius:12,opacity:loading?.5:1,transition:'opacity .2s',...style})
+  const selStyle = { width:'100%', fontSize:12, padding:'7px 10px', border:'1px solid #D8D6D0', borderRadius:8, background:'#fff', color:'#1A1916', cursor:'pointer' } as const
+  const cardStyle = { background:'#fff', border:'1px solid #E8E6E0', borderRadius:12, padding:'1rem', opacity: loading ? 0.6 : 1, transition:'opacity .2s' } as const
 
   return (
-    <div style={{padding:'1.5rem',fontFamily:'var(--font-sans)'}}>
+    <div style={{minHeight:'100vh', background:'#F0EEE8', fontFamily:"'DM Sans', system-ui, sans-serif", color:'#1A1916'}}>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:'1.25rem'}}>
-        {[
-          {value:modal,set:setModal,label:'Todos os modais',opts:['Rodoviário','Aéreo','Marítimo']},
-          {value:transportadora,set:setTransportadora,label:'Todas as transportadoras',opts:transportadoras},
-          {value:centroCusto,set:setCentroCusto,label:'Todos os C.C.',opts:centrosCusto},
-          {value:mes,set:setMes,label:'Todos os meses',opts:MESES.map((m,i)=>({label:m,value:String(i+1)}))},
-          {value:ano,set:setAno,label:'Todo o período',opts:['2026','2025','2024']},
-        ].map((f,i)=>(
-          <select key={i} value={f.value} onChange={e=>f.set(e.target.value)}
-            style={{width:'100%',fontSize:12,padding:'7px 10px',border:'0.5px solid var(--color-border-secondary)',borderRadius:8,background:'var(--color-background-primary)',color:'var(--color-text-primary)',cursor:'pointer'}}>
-            <option value="all">{f.label}</option>
-            {f.opts.map((o:any)=>typeof o==='string'?<option key={o} value={o}>{o}</option>:<option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        ))}
-      </div>
-
-      {error && <div style={{padding:'1rem',background:'var(--color-background-danger)',color:'var(--color-text-danger)',borderRadius:8,marginBottom:'1rem',fontSize:13}}>Erro: {error}</div>}
-
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:'1.25rem'}}>
-        {[
-          {label:'Valor total remessas',value:s?fmt(s.totalValue):'—',sub:s?`${s.totalCtes} CT-es · ${s.stateCount} estados`:'—'},
-          {label:'Ticket médio / CT-e',value:s?fmt(s.ticketMedio):'—',sub:'por documento'},
-          {label:'Estado de maior gasto',value:s?.topState?.name||'—',sub:s?.topState?fmt(s.topState.value):'—'},
-        ].map(c=>(
-          <div key={c.label} style={{background:'var(--color-background-secondary)',borderRadius:8,padding:'1rem 1.25rem',opacity:loading?.5:1,transition:'opacity .2s'}}>
-            <div style={{fontSize:11,fontWeight:500,letterSpacing:'.06em',color:'var(--color-text-secondary)',textTransform:'uppercase',marginBottom:6}}>{c.label}</div>
-            <div style={{fontSize:26,fontWeight:500,color:'var(--color-text-primary)',lineHeight:1.15}}>{c.value}</div>
-            <div style={{fontSize:12,color:'var(--color-text-secondary)',marginTop:3}}>{c.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',background:'var(--color-background-primary)',border:'0.5px solid var(--color-border-tertiary)',borderRadius:12,overflow:'hidden',marginBottom:'1.25rem'}}>
-        <div style={{padding:'1rem',borderRight:'0.5px solid var(--color-border-tertiary)'}}>
-          <div style={{fontSize:12,color:'var(--color-text-secondary)',marginBottom:'.75rem'}}>📍 Gasto por estado de destino</div>
-          {loading?<div style={{height:300,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--color-text-secondary)',fontSize:13}}>Carregando...</div>:<BrazilMap byState={data?.byState||[]}/>}
-          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:'.5rem',fontSize:11,color:'var(--color-text-secondary)'}}>
-            <span>Menor</span>
-            <div style={{display:'flex',height:7,flex:1,borderRadius:4,overflow:'hidden'}}>{BLUE_STOPS.map(c=><div key={c} style={{flex:1,background:c}}/>)}</div>
-            <span>Maior</span>
-          </div>
+      {/* Header */}
+      <header style={{background:'#1A1916', padding:'0 32px', height:'56px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100}}>
+        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+          <span style={{fontSize:'20px'}}>🚛</span>
+          <span style={{fontSize:'15px', fontWeight:'600', color:'#F0EEE8', letterSpacing:'-0.3px'}}>Gestão de Log</span>
         </div>
-        <div style={{padding:'1rem'}}>
-          <div style={{fontSize:12,color:'var(--color-text-secondary)',marginBottom:'.75rem'}}>🏆 Top 8 estados por valor</div>
-          {loading?<div style={{color:'var(--color-text-secondary)',fontSize:13}}>Carregando...</div>:(data?.byState||[]).slice(0,8).map(d=>{
-            const maxV=data?.byState[0]?.value||1
-            const pct=Math.round(d.value/maxV*100)
-            return(
-              <div key={d.uf} style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-                <span style={{fontSize:12,fontWeight:500,width:28,color:'var(--color-text-secondary)',textAlign:'right',flexShrink:0}}>{d.uf}</span>
-                <div style={{flex:1,background:'var(--color-background-secondary)',borderRadius:3,height:24,overflow:'hidden'}}>
-                  <div style={{width:`${pct}%`,height:'100%',borderRadius:3,background:'#dbeafe',display:'flex',alignItems:'center',paddingLeft:8}}>
-                    <span style={{fontSize:11,fontWeight:500,color:'#1a56a0',whiteSpace:'nowrap'}}>{fmt(d.value)}</span>
-                  </div>
-                </div>
+        <div style={{display:'flex', gap:'4px'}}>
+          {[{label:'CT-e',href:'/dashboard'},{label:'Mapeamento',href:'/mapeamento'},{label:'Relatórios',href:'/relatorios'},{label:'Alertas',href:'/alertas'}].map(tab => (
+            <button key={tab.href} onClick={() => router.push(tab.href)}
+              style={{padding:'5px 12px', borderRadius:'6px', fontSize:'12px', border:'none', cursor:'pointer',
+                background: tab.href === '/mapeamento' ? 'rgba(255,255,255,0.12)' : 'transparent',
+                color: tab.href === '/mapeamento' ? '#F0EEE8' : '#888'}}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div style={{position:'relative'}}>
+          <button onClick={() => setMenuAberto(m => !m)}
+            style={{display:'flex', alignItems:'center', gap:'6px', background:'rgba(255,255,255,0.08)', border:'1px solid #333', borderRadius:'8px', padding:'5px 12px', cursor:'pointer', color:'#F0EEE8', fontSize:'12px'}}>
+            <span>👤</span>
+            <span>{perfil?.nome || perfil?.email?.split('@')[0] || 'Usuário'}</span>
+            <span style={{fontSize:'10px', opacity:0.6}}>▾</span>
+          </button>
+          {menuAberto && (
+            <div style={{position:'absolute', right:0, top:'110%', background:'#fff', borderRadius:'10px', border:'1px solid #E8E6E0', boxShadow:'0 8px 24px rgba(0,0,0,.12)', minWidth:'180px', zIndex:200, overflow:'hidden'}}>
+              <div style={{padding:'12px 16px', borderBottom:'1px solid #F0EEE8'}}>
+                <div style={{fontSize:'12px', fontWeight:'600', color:'#1A1916'}}>{perfil?.nome || 'Usuário'}</div>
+                <div style={{fontSize:'11px', color:'#888', marginTop:'2px'}}>{perfil?.email}</div>
               </div>
-            )
-          })}
+              <button onClick={() => { setMenuAberto(false); sair() }}
+                style={{width:'100%', padding:'10px 16px', textAlign:'left', background:'none', border:'none', cursor:'pointer', fontSize:'13px', color:'#C62828', borderTop:'1px solid #F0EEE8'}}
+                onMouseOver={e => (e.currentTarget.style.background='#FFF5F5')}
+                onMouseOut={e => (e.currentTarget.style.background='none')}>
+                🚪 Sair
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      </header>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:'1.25rem'}}>
-        {[
-          {title:'🚛 Gasto por modal',items:data?.byModal||[],colorMap:MODAL_COLORS},
-          {title:'📋 Por centro de custo',items:data?.byCC||[],colorMap:CC_COLORS},
-        ].map(c=>(
-          <div key={c.title} style={card({padding:'1rem'})}>
-            <div style={{fontSize:12,color:'var(--color-text-secondary)',marginBottom:'.75rem'}}>{c.title}</div>
-            <BarChart items={c.items} colorMap={c.colorMap}/>
+      {/* Conteúdo */}
+      <main style={{padding:'1.5rem 2rem', maxWidth:1400, margin:'0 auto'}}>
+
+        {/* Filtros */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8, marginBottom:'1.25rem'}}>
+          <select value={modal} onChange={e => setModal(e.target.value)} style={selStyle}>
+            <option value="all">Todos os modais</option>
+            <option value="Rodoviário">Rodoviário</option>
+            <option value="Aéreo">Aéreo</option>
+            <option value="Marítimo">Marítimo</option>
+          </select>
+          <select value={transportadora} onChange={e => setTransportadora(e.target.value)} style={selStyle}>
+            <option value="all">Todas as transportadoras</option>
+            {transportadoras.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={centroCusto} onChange={e => setCentroCusto(e.target.value)} style={selStyle}>
+            <option value="all">Todos os C.C.</option>
+            {centrosCusto.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={mes} onChange={e => setMes(e.target.value)} style={selStyle}>
+            <option value="all">Todos os meses</option>
+            {MESES.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
+          </select>
+          <select value={ano} onChange={e => setAno(e.target.value)} style={selStyle}>
+            <option value="all">Todo o período</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+          </select>
+        </div>
+
+        {error && <div style={{padding:'1rem', background:'#FFEBEE', color:'#C62828', borderRadius:8, marginBottom:'1rem', fontSize:13}}>Erro: {error}</div>}
+
+        {/* KPIs */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:'1.25rem'}}>
+          {[
+            {label:'VALOR TOTAL REMESSAS', value: s ? fmt(s.totalValue) : '—', sub: s ? s.totalCtes+' CT-es · '+s.stateCount+' estados' : '—'},
+            {label:'TICKET MÉDIO / CT-E', value: s ? fmt(s.ticketMedio) : '—', sub:'por documento'},
+            {label:'ESTADO DE MAIOR GASTO', value: s?.topState?.name || '—', sub: s?.topState ? fmt(s.topState.value) : '—'},
+          ].map(c => (
+            <div key={c.label} style={{background:'#fff', borderRadius:8, padding:'1rem 1.25rem', border:'1px solid #E8E6E0', opacity: loading ? 0.5 : 1, transition:'opacity .2s'}}>
+              <div style={{fontSize:11, fontWeight:500, letterSpacing:'.06em', color:'#888', textTransform:'uppercase', marginBottom:6}}>{c.label}</div>
+              <div style={{fontSize:26, fontWeight:600, color:'#1A1916', lineHeight:1.15}}>{c.value}</div>
+              <div style={{fontSize:12, color:'#888', marginTop:3}}>{c.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mapa + Ranking */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', background:'#fff', border:'1px solid #E8E6E0', borderRadius:12, overflow:'hidden', marginBottom:'1.25rem'}}>
+          <div style={{padding:'1rem', borderRight:'1px solid #F0EEE8'}}>
+            <div style={{fontSize:12, color:'#888', marginBottom:'.75rem'}}>📍 Gasto por estado de destino</div>
+            {loading
+              ? <div style={{height:300, display:'flex', alignItems:'center', justifyContent:'center', color:'#888', fontSize:13}}>Carregando...</div>
+              : <BrazilMap byState={data?.byState || []} />}
+            <div style={{display:'flex', alignItems:'center', gap:8, marginTop:'.5rem', fontSize:11, color:'#888'}}>
+              <span>Menor</span>
+              <div style={{display:'flex', height:7, flex:1, borderRadius:4, overflow:'hidden'}}>
+                {BLUE_STOPS.map(c => <div key={c} style={{flex:1, background:c}} />)}
+              </div>
+              <span>Maior</span>
+            </div>
           </div>
-        ))}
-      </div>
-
-      <div style={{background:'var(--color-background-primary)',border:'0.5px solid var(--color-border-tertiary)',borderRadius:12,overflow:'hidden'}}>
-        <div style={{padding:'.75rem 1rem',borderBottom:'0.5px solid var(--color-border-tertiary)',fontSize:12,color:'var(--color-text-secondary)'}}>📊 Detalhamento por estado</div>
-        <div style={{overflowX:'auto'}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13,tableLayout:'fixed'}}>
-            <thead>
-              <tr style={{background:'var(--color-background-secondary)'}}>
-                {[['#',36],['Estado',130],['UF',44],['CT-es',56],['Modal predom.',120],['Valor total',120],['Ticket médio',110],['Participação',110]].map(([h,w],i)=>(
-                  <th key={h} style={{padding:'8px 12px',textAlign:i>=3?'right':'left',fontSize:11,fontWeight:500,letterSpacing:'.04em',color:'var(--color-text-secondary)',textTransform:'uppercase',borderBottom:'0.5px solid var(--color-border-tertiary)',width:w}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading?<tr><td colSpan={8} style={{padding:'2rem',textAlign:'center',color:'var(--color-text-secondary)',fontSize:13}}>Carregando...</td></tr>
-              :!(data?.byState?.length)?<tr><td colSpan={8} style={{padding:'2rem',textAlign:'center',color:'var(--color-text-secondary)',fontSize:13}}>Nenhum resultado para os filtros selecionados</td></tr>
-              :(data?.byState||[]).map((d,i)=>{
-                const total=s?.totalValue||1
-                const pct=Math.round(d.value/total*100)
-                const ticket=d.ctes>0?Math.round(d.value/d.ctes):0
-                return(
-                  <tr key={d.uf} style={{borderBottom:'0.5px solid var(--color-border-tertiary)'}}>
-                    <td style={{padding:'9px 12px'}}><span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',background:'var(--color-background-secondary)',fontSize:11,fontWeight:500}}>{i+1}</span></td>
-                    <td style={{padding:'9px 12px'}}>{d.name}</td>
-                    <td style={{padding:'9px 12px',color:'var(--color-text-secondary)'}}>{d.uf}</td>
-                    <td style={{padding:'9px 12px',textAlign:'right'}}>{d.ctes}</td>
-                    <td style={{padding:'9px 12px',textAlign:'right'}}><span style={{display:'inline-block',fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--color-background-info)',color:'var(--color-text-info)'}}>{d.modal}</span></td>
-                    <td style={{padding:'9px 12px',textAlign:'right',fontWeight:500}}>{fmt(d.value)}</td>
-                    <td style={{padding:'9px 12px',textAlign:'right'}}>{fmt(ticket)}</td>
-                    <td style={{padding:'9px 12px',textAlign:'right'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'flex-end'}}>
-                        <div style={{width:56,height:6,background:'var(--color-background-secondary)',borderRadius:3,overflow:'hidden',flexShrink:0}}><div style={{width:`${pct}%`,height:'100%',borderRadius:3,background:'#1a56a0'}}/></div>
-                        <span style={{fontSize:11,minWidth:28}}>{pct}%</span>
+          <div style={{padding:'1rem'}}>
+            <div style={{fontSize:12, color:'#888', marginBottom:'.75rem'}}>🏆 Top 8 estados por valor</div>
+            {loading ? <div style={{color:'#888', fontSize:13}}>Carregando...</div>
+              : (data?.byState || []).slice(0, 8).map(d => {
+                const maxV = data?.byState[0]?.value || 1
+                const pct = Math.round(d.value / maxV * 100)
+                return (
+                  <div key={d.uf} style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+                    <span style={{fontSize:12, fontWeight:500, width:28, color:'#888', textAlign:'right', flexShrink:0}}>{d.uf}</span>
+                    <div style={{flex:1, background:'#f3f4f6', borderRadius:3, height:24, overflow:'hidden'}}>
+                      <div style={{width:pct+'%', height:'100%', borderRadius:3, background:'#dbeafe', display:'flex', alignItems:'center', paddingLeft:8}}>
+                        <span style={{fontSize:11, fontWeight:500, color:'#1a56a0', whiteSpace:'nowrap'}}>{fmt(d.value)}</span>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+          </div>
         </div>
-      </div>
+
+        {/* Gráficos */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:'1.25rem'}}>
+          <div style={cardStyle}>
+            <div style={{fontSize:12, color:'#888', marginBottom:'.75rem'}}>🚛 Gasto por modal</div>
+            <BarChart items={data?.byModal || []} colorMap={MODAL_COLORS} />
+          </div>
+          <div style={cardStyle}>
+            <div style={{fontSize:12, color:'#888', marginBottom:'.75rem'}}>📋 Por centro de custo</div>
+            <BarChart items={(data?.byCC || []).slice(0,8)} colorMap={Object.fromEntries((data?.byCC || []).map(i => [i.label, labelColor(i.label)]))} />
+          </div>
+        </div>
+
+        {/* Tabela */}
+        <div style={{background:'#fff', border:'1px solid #E8E6E0', borderRadius:12, overflow:'hidden'}}>
+          <div style={{padding:'.75rem 1rem', borderBottom:'1px solid #F0EEE8', fontSize:13, fontWeight:600}}>📊 Detalhamento por estado</div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+              <thead>
+                <tr style={{background:'#F8F7F4'}}>
+                  {['#','Estado','UF','CT-es','Modal predom.','Valor total','Ticket médio','Participação'].map((h, i) => (
+                    <th key={h} style={{padding:'8px 16px', textAlign: i >= 3 ? 'right' : 'left', fontSize:11, fontWeight:600, color:'#888', textTransform:'uppercase', borderBottom:'1px solid #F0EEE8', whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading
+                  ? <tr><td colSpan={8} style={{padding:'2rem', textAlign:'center', color:'#888'}}>Carregando...</td></tr>
+                  : !(data?.byState?.length)
+                    ? <tr><td colSpan={8} style={{padding:'2rem', textAlign:'center', color:'#888'}}>Nenhum resultado para os filtros selecionados</td></tr>
+                    : (data?.byState || []).map((d, i) => {
+                        const total = s?.totalValue || 1
+                        const pct = Math.round(d.value / total * 100)
+                        const ticket = d.ctes > 0 ? Math.round(d.value / d.ctes) : 0
+                        return (
+                          <tr key={d.uf} style={{borderTop:'1px solid #F0EEE8', background: i%2===0?'#fff':'#FAFAF8'}}>
+                            <td style={{padding:'9px 16px'}}>
+                              <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', width:22, height:22, borderRadius:'50%', background:'#F0EEE8', fontSize:11, fontWeight:600}}>{i+1}</span>
+                            </td>
+                            <td style={{padding:'9px 16px'}}>{d.name}</td>
+                            <td style={{padding:'9px 16px', color:'#888'}}>{d.uf}</td>
+                            <td style={{padding:'9px 16px', textAlign:'right'}}>{d.ctes}</td>
+                            <td style={{padding:'9px 16px', textAlign:'right'}}>
+                              <span style={{display:'inline-block', fontSize:11, padding:'2px 8px', borderRadius:20, background:'#E3F2FD', color:'#1565C0'}}>{d.modal}</span>
+                            </td>
+                            <td style={{padding:'9px 16px', textAlign:'right', fontWeight:600}}>{fmt(d.value)}</td>
+                            <td style={{padding:'9px 16px', textAlign:'right'}}>{fmt(ticket)}</td>
+                            <td style={{padding:'9px 16px', textAlign:'right'}}>
+                              <div style={{display:'flex', alignItems:'center', gap:6, justifyContent:'flex-end'}}>
+                                <div style={{width:56, height:6, background:'#f3f4f6', borderRadius:3, overflow:'hidden', flexShrink:0}}>
+                                  <div style={{width:pct+'%', height:'100%', borderRadius:3, background:'#1a56a0'}} />
+                                </div>
+                                <span style={{fontSize:11, minWidth:28}}>{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
     </div>
   )
 }
