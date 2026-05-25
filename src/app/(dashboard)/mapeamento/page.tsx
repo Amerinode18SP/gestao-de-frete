@@ -182,6 +182,64 @@ export default function MapeamentoPage() {
     return rows
   }
 
+  // ── Exportar Excel — CSV multi-bloco (abre direto no Excel) ──
+  const exportarExcel = () => {
+    if (!data?.byState?.length) return
+    const s = data.summary
+    const sep = '\t' // tabulação — Excel reconhece sem configuração
+
+    const fmt = (v: number) => v.toLocaleString('pt-BR', {style:'currency',currency:'BRL'})
+    const pct = (v: number) => (s.totalValue > 0 ? Math.round(v/s.totalValue*100) : 0) + '%'
+
+    const linhas: string[] = []
+
+    // ── BLOCO 1: Resumo geral ──────────────────────────────
+    linhas.push('MAPEAMENTO DE REMESSAS — GESTÃO DE LOG')
+    linhas.push('Gerado em:' + sep + new Date().toLocaleString('pt-BR'))
+    linhas.push('')
+    linhas.push('=== RESUMO GERAL ===')
+    linhas.push('Valor Total Remessas' + sep + fmt(s.totalValue))
+    linhas.push('Total de CT-es'       + sep + s.totalCtes)
+    linhas.push('Estados com remessas' + sep + s.stateCount)
+    linhas.push('Ticket Médio / CT-e'  + sep + fmt(s.ticketMedio))
+    linhas.push('Estado de Maior Gasto'+ sep + (s.topState?.name||'—'))
+    linhas.push('Valor Maior Estado'   + sep + (s.topState ? fmt(s.topState.value) : '—'))
+    linhas.push('')
+
+    // ── BLOCO 2: Por estado ────────────────────────────────
+    linhas.push('=== DETALHAMENTO POR ESTADO ===')
+    linhas.push(['#','Estado','UF','CT-es','Modal Predom.','Valor Total','Ticket Médio','Participação'].join(sep))
+    ;(data.byState||[]).forEach((d,i) => {
+      const ticket = d.ctes > 0 ? Math.round(d.value/d.ctes) : 0
+      linhas.push([i+1, d.name, d.uf, d.ctes, d.modal, fmt(d.value), fmt(ticket), pct(d.value)].join(sep))
+    })
+    linhas.push('')
+
+    // ── BLOCO 3: Por modal ─────────────────────────────────
+    linhas.push('=== GASTO POR MODAL ===')
+    linhas.push(['Modal','Valor Total','Participação'].join(sep))
+    ;(data.byModal||[]).forEach(m => {
+      linhas.push([m.label, fmt(m.value), pct(m.value)].join(sep))
+    })
+    linhas.push('')
+
+    // ── BLOCO 4: Por centro de custo ───────────────────────
+    linhas.push('=== POR CENTRO DE CUSTO ===')
+    linhas.push(['Centro de Custo','Valor Total','Participação'].join(sep))
+    ;(data.byCC||[]).forEach(c => {
+      linhas.push([c.label, fmt(c.value), pct(c.value)].join(sep))
+    })
+
+    const bom  = '\uFEFF'
+    const blob = new Blob([bom + linhas.join('\n')], {type:'text/tab-separated-values;charset=utf-8'})
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = 'mapeamento-remessas-' + new Date().toISOString().slice(0,10) + '.xls'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Exportar PDF ──────────────────────────────────────
   const exportarPDF = () => {
     if (!data?.byState?.length) return
@@ -449,18 +507,7 @@ export default function MapeamentoPage() {
             📄 PDF
           </button>
         </div>
-        <div style={{display:'flex', gap:8, alignItems:'center'}}>
-          <button onClick={exportarExcel} disabled={loading || !data?.byState?.length}
-            title="Exportar Excel com 4 abas"
-            style={{background:'#1B5E20',color:'#fff',border:'none',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',fontWeight:'600',cursor:'pointer',opacity:loading||!data?.byState?.length?0.4:1}}>
-            📊 Excel
-          </button>
-          <button onClick={exportarPDF} disabled={loading || !data?.byState?.length}
-            title="Exportar PDF com mapa e gráficos"
-            style={{background:'#B71C1C',color:'#fff',border:'none',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',fontWeight:'600',cursor:'pointer',opacity:loading||!data?.byState?.length?0.4:1}}>
-            📄 PDF
-          </button>
-        </div>
+
         <div style={{position:'relative'}}>
           <button onClick={() => setMenuAberto(m => !m)}
             style={{display:'flex', alignItems:'center', gap:'6px', background:'rgba(255,255,255,0.08)', border:'1px solid #333', borderRadius:'8px', padding:'5px 12px', cursor:'pointer', color:'#F0EEE8', fontSize:'12px'}}>
