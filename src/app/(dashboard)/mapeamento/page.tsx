@@ -1,4 +1,5 @@
 'use client'
+import { exportarMapeamentoExcel } from '@/lib/exportExcel'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -180,49 +181,13 @@ export default function MapeamentoPage() {
     }).join('')
   }
 
-  // ── Exportar Excel (TSV — abre no Excel com acentos) ──
+  // ── Exportar Excel (múltiplas abas via xlsx) ───────────
   const exportarExcel = () => {
     if (!data?.byState?.length) return
-    const s = data.summary
-    const T = '\t'
-    const fmtV = (v: number) => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
-    const fmtP = (v: number) => (s.totalValue>0?Math.round(v/s.totalValue*100):0)+'%'
-    const rows: string[] = []
-
-    rows.push('MAPEAMENTO DE REMESSAS — GESTÃO DE LOG')
-    rows.push('Gerado em:'+T+new Date().toLocaleString('pt-BR'))
-    rows.push('')
-    rows.push('=== RESUMO GERAL ===')
-    rows.push('Valor Total Remessas'+T+fmtV(s.totalValue))
-    rows.push('Total de CT-es'+T+s.totalCtes)
-    rows.push('Estados com remessas'+T+s.stateCount)
-    rows.push('Ticket Médio / CT-e'+T+fmtV(s.ticketMedio))
-    rows.push('Estado de Maior Gasto'+T+(s.topState?.name||'—'))
-    rows.push('Valor Maior Estado'+T+(s.topState?fmtV(s.topState.value):'—'))
-    rows.push('')
-    rows.push('=== DETALHAMENTO POR ESTADO ===')
-    rows.push(['#','Estado','UF','CT-es','Modal','Valor Total','Ticket Médio','Participação'].join(T))
-    ;(data.byState||[]).forEach((d,i) => {
-      const ticket = d.ctes>0?Math.round(d.value/d.ctes):0
-      rows.push([i+1,d.name,d.uf,d.ctes,d.modal,fmtV(d.value),fmtV(ticket),fmtP(d.value)].join(T))
-    })
-    rows.push('')
-    rows.push('=== GASTO POR MODAL ===')
-    rows.push(['Modal','Valor Total','Participação'].join(T))
-    ;(data.byModal||[]).forEach(m => rows.push([m.label,fmtV(m.value),fmtP(m.value)].join(T)))
-    rows.push('')
-    rows.push('=== POR CENTRO DE CUSTO ===')
-    rows.push(['Centro de Custo','Valor Total','Participação'].join(T))
-    ;(data.byCC||[]).forEach(c => rows.push([c.label,fmtV(c.value),fmtP(c.value)].join(T)))
-
-    const blob = new Blob(['\uFEFF'+rows.join('\n'),],{type:'text/tab-separated-values;charset=utf-8'})
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href=url; a.download='mapeamento-'+new Date().toISOString().slice(0,10)+'.xls'; a.click()
-    URL.revokeObjectURL(url)
+    exportarMapeamentoExcel(data)
   }
 
-  // ── Exportar PDF (nova aba com mapa + gráficos) ───────
+    // ── Exportar PDF (nova aba com mapa + gráficos) ───────
   const exportarPDF = () => {
     if (!data?.byState?.length) return
     const s = data.summary
