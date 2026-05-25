@@ -256,7 +256,7 @@ export default function DashboardPage() {
           <span style={{ fontSize: '15px', fontWeight: '600', color: '#F0EEE8', letterSpacing: '-0.3px' }}>Gestão de Log</span>
         </div>
         <div style={{ display: 'flex', gap: '4px' }}>
-          {[{ label: 'CT-e', href: '/dashboard' }, { label: 'Relatórios', href: '/relatorios' }, { label: 'Alertas', href: '/alertas' }].map(tab => (
+          {[{ label: 'CT-e', href: '/dashboard' }, { label: 'Mapeamento', href: '/mapeamento' }, { label: 'Relatórios', href: '/relatorios' }, { label: 'Alertas', href: '/alertas' }].map(tab => (
             <button key={tab.href} onClick={() => router.push(tab.href)}
               style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '12px', border: 'none', cursor: 'pointer', background: tab.href === '/dashboard' ? 'rgba(255,255,255,0.12)' : 'transparent', color: tab.href === '/dashboard' ? '#F0EEE8' : '#888' }}>
               {tab.label}

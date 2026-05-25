@@ -18,7 +18,6 @@ function nomeFornecedor(r: any): string {
   if (Array.isArray(f)) return f[0]?.nome || ''
   return f.nome || ''
 }
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function nomeCC(r: any): string {
   const c = r.centros_custo
@@ -39,36 +38,48 @@ export async function GET(request: Request) {
 
     const supabase = createSupabaseAdmin()
 
+    // Busca todos em lotes de 1000
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query: any = supabase
-      .from('ctes')
-      .select(`
-        id,
-        valor_servico,
-        uf_destino,
-        modal,
-        data_emissao,
-        status,
-        fornecedores ( nome ),
-        centros_custo ( nome )
-      `)
-      .eq('empresa_id', empresaId)
-      .neq('status', 'Cancelado')
-      .not('uf_destino', 'is', null)
-      .not('valor_servico', 'is', null)
+    const allRows: any[] = []
+    const PAGE = 1000
+    let from = 0
+    let hasMore = true
 
-    if (modalFiltro) query = query.eq('modal', modalFiltro)
+    while (hasMore) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase
+        .from('ctes')
+        .select(`
+          id,
+          valor_servico,
+          uf_destino,
+          modal,
+          data_emissao,
+          status,
+          fornecedores ( nome ),
+          centros_custo ( nome )
+        `)
+        .eq('empresa_id', empresaId)
+        .neq('status', 'Cancelado')
+        .not('uf_destino', 'is', null)
+        .not('valor_servico', 'is', null)
+        .range(from, from + PAGE - 1)
 
-    const { data: ctes, error } = await query
-    if (error) throw new Error(error.message)
+      if (modalFiltro) q = q.eq('modal', modalFiltro)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows: any[] = ctes || []
+      const { data, error } = await q
+      if (error) throw new Error(error.message)
 
-    // Listas para os selects (todos os registros, sem filtro)
+      const batch = data || []
+      allRows.push(...batch)
+      hasMore = batch.length === PAGE
+      from += PAGE
+    }
+
+    // Listas para filtros (sem filtro de transp/cc/mes/ano)
     const transpSet = new Set<string>()
     const ccSet     = new Set<string>()
-    for (const r of rows) {
+    for (const r of allRows) {
       const t = nomeFornecedor(r)
       const c = nomeCC(r)
       if (t) transpSet.add(t)
@@ -76,7 +87,7 @@ export async function GET(request: Request) {
     }
 
     // Filtros em memória
-    const filtered = rows.filter(r => {
+    const filtered = allRows.filter(r => {
       const nomeT = nomeFornecedor(r)
       const nomeC = nomeCC(r)
       const data  = r.data_emissao ? new Date(r.data_emissao) : null
@@ -90,7 +101,6 @@ export async function GET(request: Request) {
       )
     })
 
-    // Agrega por estado
     const byState: Record<string, {
       name: string; uf: string; ctes: number; value: number
       modal: string; modalCounts: Record<string, number>
