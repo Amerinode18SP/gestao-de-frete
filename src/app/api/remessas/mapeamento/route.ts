@@ -18,13 +18,6 @@ function nomeFornecedor(r: any): string {
   if (Array.isArray(f)) return f[0]?.nome || ''
   return f.nome || ''
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function nomeCC(r: any): string {
-  const c = r.centros_custo
-  if (!c) return ''
-  if (Array.isArray(c)) return c[0]?.nome || ''
-  return c.nome || ''
-}
 
 export async function GET(request: Request) {
   try {
@@ -38,7 +31,6 @@ export async function GET(request: Request) {
 
     const supabase = createSupabaseAdmin()
 
-    // Busca todos em lotes de 1000
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allRows: any[] = []
     const PAGE = 1000
@@ -55,9 +47,8 @@ export async function GET(request: Request) {
           uf_destino,
           modal,
           data_emissao,
-          status,
-          fornecedores ( nome ),
-          centros_custo ( nome )
+          centro_custo_nome,
+          fornecedores ( nome )
         `)
         .eq('empresa_id', empresaId)
         .neq('status', 'Cancelado')
@@ -76,12 +67,12 @@ export async function GET(request: Request) {
       from += PAGE
     }
 
-    // Listas para filtros (sem filtro de transp/cc/mes/ano)
+    // Listas para filtros
     const transpSet = new Set<string>()
     const ccSet     = new Set<string>()
     for (const r of allRows) {
       const t = nomeFornecedor(r)
-      const c = nomeCC(r)
+      const c = r.centro_custo_nome || ''
       if (t) transpSet.add(t)
       if (c) ccSet.add(c)
     }
@@ -89,7 +80,7 @@ export async function GET(request: Request) {
     // Filtros em memória
     const filtered = allRows.filter(r => {
       const nomeT = nomeFornecedor(r)
-      const nomeC = nomeCC(r)
+      const nomeC = r.centro_custo_nome || ''
       const data  = r.data_emissao ? new Date(r.data_emissao) : null
       const rMes  = data ? String(data.getMonth() + 1) : ''
       const rAno  = data ? String(data.getFullYear())  : ''
@@ -114,7 +105,7 @@ export async function GET(request: Request) {
 
       const val = Number(r.valor_servico) || 0
       const mod = String(r.modal || 'Rodoviário')
-      const ccN = nomeCC(r) || 'Sem C.C.'
+      const ccN = r.centro_custo_nome || 'Sem C.C.'
 
       if (!byState[uf]) {
         byState[uf] = { name: ESTADOS[uf], uf, ctes: 0, value: 0, modal: '', modalCounts: {} }
