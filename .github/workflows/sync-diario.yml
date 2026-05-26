@@ -22,7 +22,7 @@ jobs:
             RESPONSE=$(curl -s -X GET \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
               --max-time 90 \
-              "https://gestao-de-frete.vercel.app/api/cron?pagina=$PAGINA&modo=sync")
+              "https://gestao-de-log.vercel.app/api/cron?pagina=$PAGINA&modo=sync")
 
             echo "Resposta: $RESPONSE"
 
@@ -47,7 +47,7 @@ jobs:
             RESPONSE=$(curl -s -X GET \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
               --max-time 90 \
-              "https://gestao-de-frete.vercel.app/api/cron?modo=resolver")
+              "https://gestao-de-log.vercel.app/api/cron?modo=resolver")
             echo "Resolver resposta: $RESPONSE"
             TEM_MAIS=$(echo $RESPONSE | grep -o '"tem_mais":true')
             if [ -z "$TEM_MAIS" ]; then
