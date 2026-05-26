@@ -59,6 +59,8 @@ export async function GET(req: NextRequest) {
     .not('numero_cte', 'ilike', '%cart%')
     .not('numero_cte', 'ilike', '%credit%')
     .not('numero_cte', 'ilike', '%credito%')
+    .not('numero_cte', 'ilike', '%.%')
+    .not('numero_cte', 'ilike', '%/%')
     .order('data_emissao', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
 
