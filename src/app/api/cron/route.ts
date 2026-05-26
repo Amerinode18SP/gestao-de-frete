@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     if (modo === 'resolver') {
       // Modo resolver transportadoras
       console.log('[CRON] Resolvendo transportadoras...')
-      const res = await fetch(`https://gestao-de-frete.vercel.app/api/omie/resolver-transportadoras`, {
+      const res = await fetch(`https://gestao-de-log.vercel.app/api/omie/resolver-transportadoras`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
