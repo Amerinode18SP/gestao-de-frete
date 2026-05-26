@@ -1,38 +1,23 @@
-name: Sync CTes Diário
+name: Sync CTes Diario
 
 on:
   schedule:
-    # Todo dia às 03:00 UTC (meia-noite horário de Brasília)
     - cron: '0 3 * * *'
-  workflow_dispatch: # Permite rodar manualmente pelo GitHub
+  workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Sync CTes (lote 1)
-        id: sync1
+      - name: Sync CTes lote 1
         run: |
-          RESP=$(curl -s -X GET "https://gestao-de-log.vercel.app/api/cron?pagina=1&modo=sync" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
-          echo "resp=$RESP"
-          echo "concluido=$(echo $RESP | grep -o '"concluido":true' | wc -l)" >> $GITHUB_OUTPUT
+          curl -s -X GET "https://gestao-de-log.vercel.app/api/cron?pagina=1&modo=sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      - name: Sync CTes (lote 2, se necessário)
-        if: steps.sync1.outputs.concluido != '1'
-        id: sync2
+      - name: Sync CTes lote 2
         run: |
-          RESP=$(curl -s -X GET "https://gestao-de-log.vercel.app/api/cron?pagina=21&modo=sync" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
-          echo "resp=$RESP"
-          echo "concluido=$(echo $RESP | grep -o '"concluido":true' | wc -l)" >> $GITHUB_OUTPUT
-
-      - name: Sync CTes (lote 3, se necessário)
-        if: steps.sync2.outputs.concluido != '1'
-        run: |
-          curl -s -X GET "https://gestao-de-log.vercel.app/api/cron?pagina=41&modo=sync" \
+          curl -s -X GET "https://gestao-de-log.vercel.app/api/cron?pagina=21&modo=sync" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
       - name: Preencher Transportadoras
