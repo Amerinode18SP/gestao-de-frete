@@ -56,6 +56,10 @@ export async function GET(req: NextRequest) {
       fornecedor:fornecedores(nome)
     `, { count: 'exact' })
     .eq('empresa_id', empresa_id)
+    // Somente registros com número de CT-e válido
+    .not('numero_cte', 'is', null)
+    .neq('numero_cte', '')
+    // Filtrar lançamentos que não são CT-e
     .not('numero_cte', 'ilike', '%cart%')
     .not('numero_cte', 'ilike', '%credit%')
     .not('numero_cte', 'ilike', '%credito%')
@@ -77,7 +81,6 @@ export async function GET(req: NextRequest) {
   }
 
   if (busca) {
-    // Monta filtro OR incluindo fornecedor_id se encontrou transportadoras
     const orParts = [
       `numero_cte.ilike.%${busca}%`,
       `remetente_nome.ilike.%${busca}%`,
