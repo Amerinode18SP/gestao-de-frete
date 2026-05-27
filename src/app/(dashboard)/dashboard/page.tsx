@@ -149,6 +149,17 @@ export default function DashboardPage() {
     return () => clearTimeout(t)
   }, [busca, filtroStatus, dataInicio, dataFim, carregarCtes, carregarResumo])
 
+
+  const verificarAlertas = async () => {
+    try {
+      await fetch('/api/alertas/verificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empresa_id: EMPRESA_ID }),
+      })
+    } catch (e) { console.error('Erro ao verificar alertas:', e) }
+  }
+
   const iniciarSync = async () => {
     setSync({ running: true, pagina: 1, total: 0, importados: 0, atualizados: 0, concluido: false })
     let pagina = 1
@@ -186,6 +197,8 @@ export default function DashboardPage() {
       await carregarUltimoSync(new Date().toISOString()) // Força data atual
       // Auto-preencher transportadoras e centros de custo após sync
       await resolverTransportadoras()
+      // Verificar alertas após sync
+      await verificarAlertas()
     } catch (e: any) {
       setSync(s => ({ ...s, running: false, erro: e.message }))
     }
