@@ -56,6 +56,9 @@ export async function GET(req: NextRequest) {
       fornecedor:fornecedores(nome)
     `, { count: 'exact' })
     .eq('empresa_id', empresa_id)
+    // Somente CT-es com chave de acesso real (44 dígitos, não começa com omie-)
+    .not('chave_acesso', 'is', null)
+    .not('chave_acesso', 'ilike', 'omie-%')
     // Somente registros com número de CT-e válido
     .not('numero_cte', 'is', null)
     .neq('numero_cte', '')
