@@ -116,9 +116,7 @@ export default function LoginPage() {
           <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1916', margin: '0 0 4px' }}>
             Gestão de Log
           </h1>
-          <p style={{ fontSize: '13px', color: '#888780', margin: 0 }}>
-            Sistema de gestão de fretes
-          </p>
+
         </div>
 
         {/* Card */}
