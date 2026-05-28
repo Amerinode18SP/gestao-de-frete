@@ -56,46 +56,61 @@ export default function LoginPage() {
 
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: senha,
-      options: { data: { nome } },
-    })
-
-    if (error) {
-      setErro(error.message.includes('already registered')
-        ? 'Este e-mail já está cadastrado.'
-        : error.message)
-      setLoading(false)
-      return
-    }
-
-    // Cria perfil na tabela perfis_usuario
-    if (data.user) {
-      await fetch('/api/usuarios/perfil', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: data.user.id,
-          nome,
-          email,
-          papel: 'visualizador',
-          empresa_id: process.env.NEXT_PUBLIC_EMPRESA_ID,
-        }),
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: senha,
+        options: { data: { nome } },
       })
+
+      if (error) {
+        const msg = error.message || ''
+        if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('User already registered')) {
+          setErro('Este e-mail já estava cadastrado no sistema. Use a aba Entrar e clique em "Esqueci minha senha" para definir sua senha de acesso.')
+        } else {
+          setErro(msg || 'Erro ao cadastrar. Tente novamente.')
+        }
+        setLoading(false)
+        return
+      }
+
+      // Cria perfil
+      if (data.user) {
+        await fetch('/api/usuarios/perfil', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: data.user.id,
+            nome,
+            email,
+            papel: 'visualizador',
+            empresa_id: process.env.NEXT_PUBLIC_EMPRESA_ID,
+          }),
+        })
+      }
+
+      setMensagem('Cadastro realizado com sucesso! Você já pode entrar.')
+      setAba('entrar')
+      setNome('')
+      setSenha('')
+      setConfirmar('')
+    } catch (e: any) {
+      setErro('Erro de conexão. Tente novamente.')
     }
 
-    setMensagem('Cadastro realizado! Você já pode entrar.')
-    setAba('entrar')
-    setSenha('')
-    setConfirmar('')
     setLoading(false)
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 12px', fontSize: '14px',
-    border: '0.5px solid #D4D2CA', borderRadius: '8px',
-    outline: 'none', background: '#FAFAF8', boxSizing: 'border-box',
+    width: '100%',
+    padding: '10px 12px',
+    fontSize: '14px',
+    border: '0.5px solid #D4D2CA',
+    borderRadius: '8px',
+    outline: 'none',
+    background: '#FAFAF8',
+    boxSizing: 'border-box',
+    color: '#1A1916',
   }
 
   return (
@@ -103,6 +118,11 @@ export default function LoginPage() {
       minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', background: '#F5F4F0', padding: '16px',
     }}>
+      <style>{`
+        input::placeholder { color: #AAAAAA !important; }
+        input { color: #1A1916 !important; }
+      `}</style>
+
       <div style={{ width: '100%', maxWidth: '400px' }}>
 
         {/* Logo */}
@@ -113,10 +133,9 @@ export default function LoginPage() {
             alignItems: 'center', justifyContent: 'center',
             fontSize: '24px', marginBottom: '12px',
           }}>🚛</div>
-          <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1916', margin: '0 0 4px' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1A1916', margin: 0 }}>
             Gestão de Log
           </h1>
-
         </div>
 
         {/* Card */}
@@ -143,7 +162,6 @@ export default function LoginPage() {
 
           <div style={{ padding: '28px' }}>
 
-            {/* Mensagem de sucesso */}
             {mensagem && (
               <div style={{
                 background: '#EAF3DE', border: '0.5px solid #B3D48A',
@@ -154,12 +172,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Erro */}
             {erro && (
               <div style={{
                 background: '#FCEBEB', border: '0.5px solid #E8AEAE',
                 borderRadius: '8px', padding: '10px 14px',
                 fontSize: '13px', color: '#791F1F', marginBottom: '16px',
+                lineHeight: '1.5',
               }}>
                 ⚠️ {erro}
               </div>
@@ -199,7 +217,7 @@ export default function LoginPage() {
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ fontSize: '13px', fontWeight: '500', color: '#444441', display: 'block', marginBottom: '6px' }}>Nome completo</label>
                   <input type="text" value={nome} onChange={e => setNome(e.target.value)}
-                    placeholder="Seu nome" required style={inputStyle} />
+                    placeholder="Seu nome completo" required style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ fontSize: '13px', fontWeight: '500', color: '#444441', display: 'block', marginBottom: '6px' }}>E-mail</label>
