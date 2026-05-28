@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
-
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
@@ -12,29 +11,32 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  let query = supabase
-    .from('ctes')
-    .select('valor_servico, data_emissao, fornecedor_id, centro_custo_nome, fornecedor:fornecedores(nome)')
-    .eq('empresa_id', empresa_id)
-    .not('status', 'eq', 'Cancelado')
-    // Mesmos filtros da tabela CT-e
-    .not('chave_acesso', 'is', null)
-    .not('chave_acesso', 'ilike', 'omie-%')
-    .not('numero_cte', 'is', null)
-    .neq('numero_cte', '')
-    .not('numero_cte', 'ilike', '%cart%')
-    .not('numero_cte', 'ilike', '%credit%')
-    .not('numero_cte', 'ilike', '%credito%')
-    .not('numero_cte', 'ilike', '%.%')
-    .not('numero_cte', 'ilike', '%/%')
+  // Busca em lotes de 1000 para contornar limite do Supabase
+  const allRows: any[] = []
+  const PAGE = 1000
+  let from = 0
 
-  if (dataInicio) query = query.gte('data_emissao', dataInicio)
-  if (dataFim)    query = query.lte('data_emissao', dataFim)
+  while (true) {
+    let q = supabase
+      .from('ctes')
+      .select('valor_servico, data_emissao, fornecedor_id, centro_custo_nome, fornecedor:fornecedores(nome)')
+      .eq('empresa_id', empresa_id)
+      .neq('status', 'Cancelado')
+      .range(from, from + PAGE - 1)
 
-  const { data, error } = await query.limit(50000)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (dataInicio) q = q.gte('data_emissao', dataInicio)
+    if (dataFim)    q = q.lte('data_emissao', dataFim)
 
-  const ctes = data ?? []
+    const { data, error } = await q
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    const batch = data ?? []
+    allRows.push(...batch)
+    if (batch.length < PAGE) break
+    from += PAGE
+  }
+
+  const ctes = allRows
 
   // Por mês
   const mesMapa = new Map<string, { valor: number; count: number }>()
