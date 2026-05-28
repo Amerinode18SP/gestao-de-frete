@@ -10,11 +10,14 @@ export async function POST(req: NextRequest) {
   const supabase = createSupabaseAdmin()
   const agora = new Date()
 
-  // Semana: últimos 7 dias
-  const inicio7dias = new Date(agora)
-  inicio7dias.setDate(agora.getDate() - 7)
+  // Semana calendário: segunda-feira desta semana
+  const diaSemana = agora.getDay()
+  const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1
+  const inicioSemana = new Date(agora)
+  inicioSemana.setDate(agora.getDate() - diasDesdeSegunda)
+  inicioSemana.setHours(0, 0, 0, 0)
 
-  // Mês: mês calendário atual
+  // Mês calendário atual
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
   const { data: params } = await supabase
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
   const limiteFornecedor = Number(params.limite_fornecedor ?? 0)
   const tolerancia       = Number(params.tolerancia_pc     ?? 0) / 100
 
-  // Busca CTes do mês atual (todos os status incluindo Pendente)
+  // Busca CTes do mês atual
   const { data: ctesMes } = await supabase
     .from('ctes')
     .select('valor_servico, data_emissao, fornecedor_id, fornecedor:fornecedores(nome)')
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const gastoMes    = ctes.reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
   const gastoSemana = ctes
-    .filter((c: any) => c.data_emissao >= inicio7dias.toISOString().split('T')[0])
+    .filter((c: any) => c.data_emissao >= inicioSemana.toISOString().split('T')[0])
     .reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
 
   const porFornecedor: Record<string, { nome: string; total: number }> = {}
@@ -56,9 +59,13 @@ export async function POST(req: NextRequest) {
   const novosAlertas: any[] = []
 
   if (limiteSemanal > 0 && gastoSemana >= limiteSemanal * (1 + tolerancia)) {
+    const seg = inicioSemana.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    const dom = new Date(inicioSemana)
+    dom.setDate(dom.getDate() + 6)
+    const domStr = dom.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
     novosAlertas.push({
       empresa_id, tipo: 'semanal', lido: false,
-      mensagem: `Gasto nos últimos 7 dias R$ ${gastoSemana.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteSemanal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      mensagem: `Gasto da semana (${seg} a ${domStr}) R$ ${gastoSemana.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteSemanal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       valor: gastoSemana, limite: limiteSemanal,
     })
   }
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest) {
   if (limiteMensal > 0 && gastoMes >= limiteMensal * (1 + tolerancia)) {
     novosAlertas.push({
       empresa_id, tipo: 'mensal', lido: false,
-      mensagem: `Gasto em ${agora.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })} R$ ${gastoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      mensagem: `Gasto de ${agora.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })} R$ ${gastoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       valor: gastoMes, limite: limiteMensal,
     })
   }
