@@ -52,6 +52,8 @@ export async function GET(request: Request) {
         `)
         .eq('empresa_id', empresaId)
         .neq('status', 'Cancelado')
+        .not('chave_acesso', 'is', null)
+        .not('chave_acesso', 'ilike', 'omie-%')
         .not('uf_destino', 'is', null)
         .not('valor_servico', 'is', null)
         .range(from, from + PAGE - 1)

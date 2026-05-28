@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  // Busca em lotes de 1000 para contornar limite do Supabase
+  // Busca em lotes de 1000 — exclui cancelados e lançamentos sem chave CT-e real
   const allRows: any[] = []
   const PAGE = 1000
   let from = 0
@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
       .select('valor_servico, data_emissao, fornecedor_id, centro_custo_nome, fornecedor:fornecedores(nome)')
       .eq('empresa_id', empresa_id)
       .neq('status', 'Cancelado')
+      .not('chave_acesso', 'is', null)
+      .not('chave_acesso', 'ilike', 'omie-%')
       .range(from, from + PAGE - 1)
 
     if (dataInicio) q = q.gte('data_emissao', dataInicio)
@@ -74,7 +76,6 @@ export async function GET(req: NextRequest) {
   })
   const por_centro = Array.from(centroMapa.values()).sort((a, b) => b.valor - a.valor)
 
-  // Totais
   const valorTotal = ctes.reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
   const mesesUnicos = new Set(ctes.map((c: any) => c.data_emissao?.substring(0, 7)).filter(Boolean)).size
   const media  = mesesUnicos > 0 ? valorTotal / mesesUnicos : 0

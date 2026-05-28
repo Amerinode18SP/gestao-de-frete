@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdmin()
 
-  // Se há busca, buscar fornecedor_ids que batem com o nome
   let fornecedorIds: string[] = []
   if (busca) {
     const { data: forn } = await supabase
@@ -29,15 +28,14 @@ export async function GET(req: NextRequest) {
     fornecedorIds = (forn ?? []).map((f: any) => f.id)
   }
 
-  // Monta filtros de data e busca como string SQL para usar no rpc
-  // Usamos queries separadas com count para contagens
-  const makeCount = (extraEq?: { col: string; val: string }) => {
-    let q = supabase
-      .from('ctes')
-      .select('*', { count: 'exact', head: true })
+  const aplicarFiltros = (q: any, incluirStatus?: string) => {
+    q = q
       .eq('empresa_id', empresa_id)
-
-    if (extraEq) q = q.eq(extraEq.col, extraEq.val)
+      .not('chave_acesso', 'is', null)
+      .not('chave_acesso', 'ilike', 'omie-%')
+    if (incluirStatus) {
+      q = q.eq('status', incluirStatus)
+    }
     if (dataInicio) q = q.gte('data_emissao', dataInicio)
     if (dataFim)    q = q.lte('data_emissao', dataFim)
     if (busca) {
@@ -55,7 +53,12 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  // Valor total: busca em lotes de 1000 para somar tudo (igual ao Mapeamento)
+  const makeCount = (extraStatus?: string) => {
+    let q = supabase.from('ctes').select('*', { count: 'exact', head: true })
+    return aplicarFiltros(q, extraStatus)
+  }
+
+  // Valor total em lotes para contornar limite 1000 do Supabase
   const calcValorTotal = async () => {
     let total = 0
     let from = 0
@@ -67,10 +70,12 @@ export async function GET(req: NextRequest) {
         .from('ctes')
         .select('valor_servico')
         .eq('empresa_id', empresa_id)
+        .not('chave_acesso', 'is', null)
+        .not('chave_acesso', 'ilike', 'omie-%')
         .neq('status', 'Cancelado')
         .range(from, from + PAGE - 1)
 
-      if (filtroStatus) q = q.eq('status', filtroStatus)
+      if (filtroStatus && filtroStatus !== 'Cancelado') q = q.eq('status', filtroStatus)
       if (dataInicio) q = q.gte('data_emissao', dataInicio)
       if (dataFim)    q = q.lte('data_emissao', dataFim)
       if (busca) {
@@ -95,11 +100,19 @@ export async function GET(req: NextRequest) {
     return total
   }
 
+  // Total geral (sem filtro de status, mas com chave válida)
+  const totalQuery = supabase
+    .from('ctes')
+    .select('*', { count: 'exact', head: true })
+    .eq('empresa_id', empresa_id)
+    .not('chave_acesso', 'is', null)
+    .not('chave_acesso', 'ilike', 'omie-%')
+
   const [totalRes, faturado, cancelado, pendente, valor_total] = await Promise.all([
-    makeCount(),
-    makeCount({ col: 'status', val: 'Faturado' }),
-    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Cancelado'),
-    makeCount({ col: 'status', val: 'Pendente' }),
+    totalQuery,
+    makeCount('Faturado'),
+    makeCount('Cancelado'),
+    makeCount('Pendente'),
     calcValorTotal(),
   ])
 

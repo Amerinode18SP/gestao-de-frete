@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
 
-// Mapa de código IBGE → sigla UF
 const UF_MAP: Record<string, string> = {
   '11': 'RO', '12': 'AC', '13': 'AM', '14': 'RR', '15': 'PA',
   '16': 'AP', '17': 'TO', '21': 'MA', '22': 'PI', '23': 'CE',
@@ -36,7 +35,6 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseAdmin()
   const offset = (page - 1) * limit
 
-  // Se há busca, primeiro busca fornecedor_ids que batem com o nome
   let fornecedorIds: string[] = []
   if (busca) {
     const { data: forn } = await supabase
@@ -56,20 +54,14 @@ export async function GET(req: NextRequest) {
       fornecedor:fornecedores(nome)
     `, { count: 'exact' })
     .eq('empresa_id', empresa_id)
+    .not('chave_acesso', 'is', null)
+    .not('chave_acesso', 'ilike', 'omie-%')
     .order('data_emissao', { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1)
 
-  if (status && status !== 'Todos') {
-    query = query.eq('status', status)
-  }
-
-  if (dataInicio) {
-    query = query.gte('data_emissao', dataInicio)
-  }
-
-  if (dataFim) {
-    query = query.lte('data_emissao', dataFim)
-  }
+  if (status && status !== 'Todos') query = query.eq('status', status)
+  if (dataInicio) query = query.gte('data_emissao', dataInicio)
+  if (dataFim)    query = query.lte('data_emissao', dataFim)
 
   if (busca) {
     const orParts = [
@@ -86,9 +78,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error, count } = await query
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const ctes = (data ?? []).map((c: any) => {
     const uf_origem = c.uf_origem || ufDaChave(c.chave_acesso)
