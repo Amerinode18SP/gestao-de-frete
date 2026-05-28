@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const agora = new Date()
 
   // Semana calendário: segunda-feira desta semana
-  const diaSemana = agora.getDay() // 0=dom, 1=seg, ..., 6=sab
+  const diaSemana = agora.getDay()
   const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1
   const inicioSemana = new Date(agora)
   inicioSemana.setDate(agora.getDate() - diasDesdeSegunda)
@@ -20,14 +20,27 @@ export async function GET(req: NextRequest) {
   // Mês calendário atual
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
+  // Filtros iguais à tabela CT-e
+  const aplicarFiltros = (q: any, dataInicio?: string) => {
+    q = q
+      .eq('empresa_id', empresa_id)
+      .not('chave_acesso', 'is', null)
+      .not('chave_acesso', 'ilike', 'omie-%')
+      .not('numero_cte', 'is', null)
+      .neq('numero_cte', '')
+      .not('numero_cte', 'ilike', '%cart%')
+      .not('numero_cte', 'ilike', '%credit%')
+      .not('numero_cte', 'ilike', '%credito%')
+      .not('numero_cte', 'ilike', '%.%')
+      .not('numero_cte', 'ilike', '%/%')
+    if (dataInicio) q = q.gte('data_emissao', dataInicio)
+    return q
+  }
+
   const [alertasRes, semanalRes, mensalRes, paramsRes] = await Promise.all([
     supabase.from('alertas_historico').select('*').eq('empresa_id', empresa_id).order('criado_em', { ascending: false }).limit(50),
-    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id)
-      .in('status', ['Faturado', 'Recebido', 'Pendente'])
-      .gte('data_emissao', inicioSemana.toISOString().split('T')[0]),
-    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id)
-      .in('status', ['Faturado', 'Recebido', 'Pendente'])
-      .gte('data_emissao', inicioMes.toISOString().split('T')[0]),
+    aplicarFiltros(supabase.from('ctes').select('valor_servico').in('status', ['Faturado', 'Recebido', 'Pendente']), inicioSemana.toISOString().split('T')[0]),
+    aplicarFiltros(supabase.from('ctes').select('valor_servico').in('status', ['Faturado', 'Recebido', 'Pendente']), inicioMes.toISOString().split('T')[0]),
     supabase.from('parametros_alerta').select('limite_semanal').eq('empresa_id', empresa_id).maybeSingle(),
   ])
 

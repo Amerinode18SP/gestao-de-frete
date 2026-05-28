@@ -33,12 +33,21 @@ export async function POST(req: NextRequest) {
   const limiteFornecedor = Number(params.limite_fornecedor ?? 0)
   const tolerancia       = Number(params.tolerancia_pc     ?? 0) / 100
 
-  // Busca CTes do mês atual
+  // Busca CTes do mês com filtros corretos
   const { data: ctesMes } = await supabase
     .from('ctes')
     .select('valor_servico, data_emissao, fornecedor_id, fornecedor:fornecedores(nome)')
     .eq('empresa_id', empresa_id)
     .in('status', ['Faturado', 'Recebido', 'Pendente'])
+    .not('chave_acesso', 'is', null)
+    .not('chave_acesso', 'ilike', 'omie-%')
+    .not('numero_cte', 'is', null)
+    .neq('numero_cte', '')
+    .not('numero_cte', 'ilike', '%cart%')
+    .not('numero_cte', 'ilike', '%credit%')
+    .not('numero_cte', 'ilike', '%credito%')
+    .not('numero_cte', 'ilike', '%.%')
+    .not('numero_cte', 'ilike', '%/%')
     .gte('data_emissao', inicioMes.toISOString().split('T')[0])
 
   const ctes = ctesMes ?? []
