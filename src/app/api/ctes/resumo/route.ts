@@ -29,62 +29,61 @@ export async function GET(req: NextRequest) {
     fornecedorIds = (forn ?? []).map((f: any) => f.id)
   }
 
-  // Monta filtro OR para busca (incluindo transportadora)
-  const buildOrFilter = (q: any) => {
-    if (!busca) return q
-    const orParts = [
-      `numero_cte.ilike.%${busca}%`,
-      `remetente_nome.ilike.%${busca}%`,
-      `destinatario_nome.ilike.%${busca}%`,
-      `centro_custo_nome.ilike.%${busca}%`,
-    ]
-    if (fornecedorIds.length > 0) {
-      orParts.push(`fornecedor_id.in.(${fornecedorIds.join(',')})`)
-    }
-    return q.or(orParts.join(','))
-  }
-
-  // Base query para contagens
-  const baseCount = (extraStatus?: string) => {
-    let q = supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id)
-    if (status && status !== 'Todos') q = q.eq('status', status)
-    if (extraStatus) q = q.eq('status', extraStatus)
+  // Filtros base iguais ao ctes/route.ts
+  const aplicarFiltrosBase = (q: any) => {
+    q = q
+      .eq('empresa_id', empresa_id)
+      .not('chave_acesso', 'is', null)
+      .not('chave_acesso', 'ilike', 'omie-%')
+      .not('numero_cte', 'is', null)
+      .neq('numero_cte', '')
+      .not('numero_cte', 'ilike', '%cart%')
+      .not('numero_cte', 'ilike', '%credit%')
+      .not('numero_cte', 'ilike', '%credito%')
+      .not('numero_cte', 'ilike', '%.%')
+      .not('numero_cte', 'ilike', '%/%')
     if (dataInicio) q = q.gte('data_emissao', dataInicio)
-    if (dataFim) q = q.lte('data_emissao', dataFim)
-    q = buildOrFilter(q)
+    if (dataFim)    q = q.lte('data_emissao', dataFim)
+    if (busca) {
+      const orParts = [
+        `numero_cte.ilike.%${busca}%`,
+        `remetente_nome.ilike.%${busca}%`,
+        `destinatario_nome.ilike.%${busca}%`,
+        `centro_custo_nome.ilike.%${busca}%`,
+      ]
+      if (fornecedorIds.length > 0) {
+        orParts.push(`fornecedor_id.in.(${fornecedorIds.join(',')})`)
+      }
+      q = q.or(orParts.join(','))
+    }
     return q
   }
 
-  // Query para valor total via RPC
-  const valorQuery = supabase.rpc('sum_valor_ctes_v4', {
-    p_empresa_id: empresa_id,
-    p_status: status && status !== 'Todos' ? status : null,
-    p_busca: busca || null,
-    p_fornecedor_ids: fornecedorIds.length > 0 ? fornecedorIds : null,
-    p_data_inicio: dataInicio || null,
-    p_data_fim: dataFim || null,
-  })
+  const baseCount = (extraStatus?: string) => {
+    let q = supabase.from('ctes').select('*', { count: 'exact', head: true })
+    q = aplicarFiltrosBase(q)
+    if (status && status !== 'Todos') q = q.eq('status', status)
+    if (extraStatus) q = q.eq('status', extraStatus)
+    return q
+  }
 
-  const [total, faturado, cancelado, pendente, valorRes] = await Promise.all([
+  // Valor total: soma direta com os mesmos filtros
+  const valorQuery = () => {
+    let q = supabase.from('ctes').select('valor_servico')
+    q = aplicarFiltrosBase(q)
+    if (status && status !== 'Todos') q = q.eq('status', status)
+    return q
+  }
+
+  const [total, faturado, cancelado, pendente, valoresRes] = await Promise.all([
     baseCount(),
     baseCount('Faturado'),
     baseCount('Cancelado'),
     baseCount('Pendente'),
-    valorQuery,
+    valorQuery(),
   ])
 
-  // Fallback: se RPC falhar, soma manualmente com limit
-  let valor_total = 0
-  if (valorRes.error) {
-    const { data: vals } = await supabase
-      .from('ctes')
-      .select('valor_servico')
-      .eq('empresa_id', empresa_id)
-      .limit(10000)
-    valor_total = (vals ?? []).reduce((a: number, r: any) => a + (r.valor_servico ?? 0), 0)
-  } else {
-    valor_total = (valorRes.data as number) ?? 0
-  }
+  const valor_total = (valoresRes.data ?? []).reduce((a: number, r: any) => a + (r.valor_servico ?? 0), 0)
 
   return NextResponse.json({
     total:      total.count     ?? 0,
