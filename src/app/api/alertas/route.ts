@@ -10,18 +10,21 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseAdmin()
   const agora = new Date()
 
-  // Últimos 7 dias (semana)
+  // Semana: últimos 7 dias
   const inicio7dias = new Date(agora)
   inicio7dias.setDate(agora.getDate() - 7)
 
-  // Últimos 30 dias (mês)
-  const inicio30dias = new Date(agora)
-  inicio30dias.setDate(agora.getDate() - 30)
+  // Mês: mês calendário atual
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
   const [alertasRes, semanalRes, mensalRes, paramsRes] = await Promise.all([
     supabase.from('alertas_historico').select('*').eq('empresa_id', empresa_id).order('criado_em', { ascending: false }).limit(50),
-    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id).in('status', ['Faturado', 'Recebido']).gte('data_emissao', inicio7dias.toISOString().split('T')[0]),
-    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id).in('status', ['Faturado', 'Recebido']).gte('data_emissao', inicio30dias.toISOString().split('T')[0]),
+    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id)
+      .in('status', ['Faturado', 'Recebido', 'Pendente'])
+      .gte('data_emissao', inicio7dias.toISOString().split('T')[0]),
+    supabase.from('ctes').select('valor_servico').eq('empresa_id', empresa_id)
+      .in('status', ['Faturado', 'Recebido', 'Pendente'])
+      .gte('data_emissao', inicioMes.toISOString().split('T')[0]),
     supabase.from('parametros_alerta').select('limite_semanal').eq('empresa_id', empresa_id).maybeSingle(),
   ])
 

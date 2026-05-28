@@ -10,15 +10,13 @@ export async function POST(req: NextRequest) {
   const supabase = createSupabaseAdmin()
   const agora = new Date()
 
-  // Últimos 7 dias (semana)
+  // Semana: últimos 7 dias
   const inicio7dias = new Date(agora)
   inicio7dias.setDate(agora.getDate() - 7)
 
-  // Últimos 30 dias (mês)
-  const inicio30dias = new Date(agora)
-  inicio30dias.setDate(agora.getDate() - 30)
+  // Mês: mês calendário atual
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
-  // Busca parâmetros
   const { data: params } = await supabase
     .from('parametros_alerta')
     .select('*')
@@ -32,23 +30,21 @@ export async function POST(req: NextRequest) {
   const limiteFornecedor = Number(params.limite_fornecedor ?? 0)
   const tolerancia       = Number(params.tolerancia_pc     ?? 0) / 100
 
-  // Busca CTes dos últimos 30 dias
-  const { data: ctes30 } = await supabase
+  // Busca CTes do mês atual (todos os status incluindo Pendente)
+  const { data: ctesMes } = await supabase
     .from('ctes')
     .select('valor_servico, data_emissao, fornecedor_id, fornecedor:fornecedores(nome)')
     .eq('empresa_id', empresa_id)
-    .in('status', ['Faturado', 'Recebido'])
-    .gte('data_emissao', inicio30dias.toISOString().split('T')[0])
+    .in('status', ['Faturado', 'Recebido', 'Pendente'])
+    .gte('data_emissao', inicioMes.toISOString().split('T')[0])
 
-  const ctes = ctes30 ?? []
+  const ctes = ctesMes ?? []
 
-  // Gastos
   const gastoMes    = ctes.reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
   const gastoSemana = ctes
     .filter((c: any) => c.data_emissao >= inicio7dias.toISOString().split('T')[0])
     .reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
 
-  // Gastos por fornecedor
   const porFornecedor: Record<string, { nome: string; total: number }> = {}
   for (const c of ctes) {
     const fid   = (c as any).fornecedor_id ?? 'sem-fornecedor'
@@ -70,7 +66,7 @@ export async function POST(req: NextRequest) {
   if (limiteMensal > 0 && gastoMes >= limiteMensal * (1 + tolerancia)) {
     novosAlertas.push({
       empresa_id, tipo: 'mensal', lido: false,
-      mensagem: `Gasto nos últimos 30 dias R$ ${gastoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      mensagem: `Gasto em ${agora.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })} R$ ${gastoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ultrapassou o limite de R$ ${limiteMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       valor: gastoMes, limite: limiteMensal,
     })
   }
@@ -80,14 +76,13 @@ export async function POST(req: NextRequest) {
       if (forn.total >= limiteFornecedor * (1 + tolerancia)) {
         novosAlertas.push({
           empresa_id, tipo: 'fornecedor', lido: false,
-          mensagem: `Transportadora ${forn.nome} gastou R$ ${forn.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} nos últimos 30 dias (limite: R$ ${limiteFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
+          mensagem: `Transportadora ${forn.nome} gastou R$ ${forn.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} este mês (limite: R$ ${limiteFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`,
           valor: forn.total, limite: limiteFornecedor,
         })
       }
     }
   }
 
-  // Evita duplicar alertas do mesmo tipo hoje
   const hoje = agora.toISOString().split('T')[0]
   const { data: alertasHoje } = await supabase
     .from('alertas_historico')
