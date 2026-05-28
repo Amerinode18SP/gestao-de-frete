@@ -17,6 +17,16 @@ export async function GET(req: NextRequest) {
     .select('valor_servico, data_emissao, fornecedor_id, centro_custo_nome, fornecedor:fornecedores(nome)')
     .eq('empresa_id', empresa_id)
     .not('status', 'eq', 'Cancelado')
+    // Mesmos filtros da tabela CT-e
+    .not('chave_acesso', 'is', null)
+    .not('chave_acesso', 'ilike', 'omie-%')
+    .not('numero_cte', 'is', null)
+    .neq('numero_cte', '')
+    .not('numero_cte', 'ilike', '%cart%')
+    .not('numero_cte', 'ilike', '%credit%')
+    .not('numero_cte', 'ilike', '%credito%')
+    .not('numero_cte', 'ilike', '%.%')
+    .not('numero_cte', 'ilike', '%/%')
 
   if (dataInicio) query = query.gte('data_emissao', dataInicio)
   if (dataFim)    query = query.lte('data_emissao', dataFim)
@@ -36,7 +46,11 @@ export async function GET(req: NextRequest) {
   })
   const por_mes = Array.from(mesMapa.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([mes, d]) => ({ mes: new Date(mes + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), valor: d.valor, count: d.count }))
+    .map(([mes, d]) => ({
+      mes: new Date(mes + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      valor: d.valor,
+      count: d.count,
+    }))
 
   // Por fornecedor
   const fornMapa = new Map<string, { nome: string; valor: number; count: number }>()
@@ -61,7 +75,7 @@ export async function GET(req: NextRequest) {
   // Totais
   const valorTotal = ctes.reduce((a: number, c: any) => a + (c.valor_servico ?? 0), 0)
   const mesesUnicos = new Set(ctes.map((c: any) => c.data_emissao?.substring(0, 7)).filter(Boolean)).size
-  const media = mesesUnicos > 0 ? valorTotal / mesesUnicos : 0
+  const media  = mesesUnicos > 0 ? valorTotal / mesesUnicos : 0
   const ticket = ctes.length > 0 ? valorTotal / ctes.length : 0
 
   return NextResponse.json({
