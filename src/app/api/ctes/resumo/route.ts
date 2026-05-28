@@ -29,21 +29,14 @@ export async function GET(req: NextRequest) {
     fornecedorIds = (forn ?? []).map((f: any) => f.id)
   }
 
-  // Filtros base iguais ao ctes/route.ts
   const aplicarFiltrosBase = (q: any) => {
     q = q
       .eq('empresa_id', empresa_id)
-      .not('chave_acesso', 'is', null)
-      .not('chave_acesso', 'ilike', 'omie-%')
-      .not('numero_cte', 'is', null)
-      .neq('numero_cte', '')
-      .not('numero_cte', 'ilike', '%cart%')
-      .not('numero_cte', 'ilike', '%credit%')
-      .not('numero_cte', 'ilike', '%credito%')
-      .not('numero_cte', 'ilike', '%.%')
-      .not('numero_cte', 'ilike', '%/%')
+      .neq('status', 'Cancelado')
+
     if (dataInicio) q = q.gte('data_emissao', dataInicio)
     if (dataFim)    q = q.lte('data_emissao', dataFim)
+
     if (busca) {
       const orParts = [
         `numero_cte.ilike.%${busca}%`,
@@ -62,23 +55,57 @@ export async function GET(req: NextRequest) {
   const baseCount = (extraStatus?: string) => {
     let q = supabase.from('ctes').select('*', { count: 'exact', head: true })
     q = aplicarFiltrosBase(q)
-    if (status && status !== 'Todos') q = q.eq('status', status)
+    // Se filtro global de status ativo (e não é Cancelado que já exclui)
+    if (status && status !== 'Todos' && status !== 'Cancelado') q = q.eq('status', status)
     if (extraStatus) q = q.eq('status', extraStatus)
     return q
   }
 
-  // Valor total: soma direta com os mesmos filtros
-  const valorQuery = () => {
-    let q = supabase.from('ctes').select('valor_servico')
-    q = aplicarFiltrosBase(q)
-    if (status && status !== 'Todos') q = q.eq('status', status)
+  const totalQuery = () => {
+    let q = supabase.from('ctes').select('*', { count: 'exact', head: true })
+    q = q.eq('empresa_id', empresa_id)
+    if (dataInicio) q = q.gte('data_emissao', dataInicio)
+    if (dataFim)    q = q.lte('data_emissao', dataFim)
+    if (busca) {
+      const orParts = [
+        `numero_cte.ilike.%${busca}%`,
+        `remetente_nome.ilike.%${busca}%`,
+        `destinatario_nome.ilike.%${busca}%`,
+        `centro_custo_nome.ilike.%${busca}%`,
+      ]
+      if (fornecedorIds.length > 0) {
+        orParts.push(`fornecedor_id.in.(${fornecedorIds.join(',')})`)
+      }
+      q = q.or(orParts.join(','))
+    }
     return q
   }
 
-  const [total, faturado, cancelado, pendente, valoresRes] = await Promise.all([
-    baseCount(),
+  const valorQuery = () => {
+    let q = supabase.from('ctes').select('valor_servico')
+    q = q.eq('empresa_id', empresa_id).neq('status', 'Cancelado')
+    if (dataInicio) q = q.gte('data_emissao', dataInicio)
+    if (dataFim)    q = q.lte('data_emissao', dataFim)
+    if (status && status !== 'Todos' && status !== 'Cancelado') q = q.eq('status', status)
+    if (busca) {
+      const orParts = [
+        `numero_cte.ilike.%${busca}%`,
+        `remetente_nome.ilike.%${busca}%`,
+        `destinatario_nome.ilike.%${busca}%`,
+        `centro_custo_nome.ilike.%${busca}%`,
+      ]
+      if (fornecedorIds.length > 0) {
+        orParts.push(`fornecedor_id.in.(${fornecedorIds.join(',')})`)
+      }
+      q = q.or(orParts.join(','))
+    }
+    return q
+  }
+
+  const [totalRes, faturado, cancelado, pendente, valoresRes] = await Promise.all([
+    totalQuery(),
     baseCount('Faturado'),
-    baseCount('Cancelado'),
+    supabase.from('ctes').select('*', { count: 'exact', head: true }).eq('empresa_id', empresa_id).eq('status', 'Cancelado'),
     baseCount('Pendente'),
     valorQuery(),
   ])
@@ -86,10 +113,10 @@ export async function GET(req: NextRequest) {
   const valor_total = (valoresRes.data ?? []).reduce((a: number, r: any) => a + (r.valor_servico ?? 0), 0)
 
   return NextResponse.json({
-    total:      total.count     ?? 0,
-    faturado:   faturado.count  ?? 0,
-    cancelado:  cancelado.count ?? 0,
-    pendente:   pendente.count  ?? 0,
+    total:      totalRes.count    ?? 0,
+    faturado:   faturado.count    ?? 0,
+    cancelado:  cancelado.count   ?? 0,
+    pendente:   pendente.count    ?? 0,
     valor_total,
   })
 }
