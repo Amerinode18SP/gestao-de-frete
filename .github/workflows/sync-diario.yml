@@ -16,6 +16,8 @@ jobs:
           PAGINA=1
           TOTAL_IMPORTADOS=0
           TOTAL_ATUALIZADOS=0
+          MAX_ERROS=5
+          ERROS_CONSECUTIVOS=0
 
           while true; do
             echo "Processando pagina $PAGINA..."
@@ -26,20 +28,38 @@ jobs:
 
             echo "Resposta: $RESPONSE"
 
-            PROXIMA=$(echo $RESPONSE | grep -o '"proxima_pagina":[0-9]*' | grep -o '[0-9]*')
-            IMPORTADOS=$(echo $RESPONSE | grep -o '"importados":[0-9]*' | grep -o '[0-9]*')
-            ATUALIZADOS=$(echo $RESPONSE | grep -o '"atualizados":[0-9]*' | grep -o '[0-9]*')
+            # Verifica se curl falhou completamente (sem resposta)
+            if [ -z "$RESPONSE" ]; then
+              ERROS_CONSECUTIVOS=$((ERROS_CONSECUTIVOS + 1))
+              echo "Sem resposta do servidor ($ERROS_CONSECUTIVOS/$MAX_ERROS)"
+              if [ $ERROS_CONSECUTIVOS -ge $MAX_ERROS ]; then
+                echo "Muitos erros consecutivos, encerrando"
+                break
+              fi
+              sleep 10
+              continue
+            fi
+
+            ERROS_CONSECUTIVOS=0
+
+            PROXIMA=$(echo $RESPONSE | grep -o '"proxima_pagina":[0-9]*' | grep -o '[0-9]*$')
+            IMPORTADOS=$(echo $RESPONSE | grep -o '"importados":[0-9]*' | grep -o '[0-9]*$')
+            ATUALIZADOS=$(echo $RESPONSE | grep -o '"atualizados":[0-9]*' | grep -o '[0-9]*$')
+            CONCLUIDO=$(echo $RESPONSE | grep -o '"concluido":true')
 
             TOTAL_IMPORTADOS=$((TOTAL_IMPORTADOS + ${IMPORTADOS:-0}))
             TOTAL_ATUALIZADOS=$((TOTAL_ATUALIZADOS + ${ATUALIZADOS:-0}))
 
-            if [ -z "$PROXIMA" ] || [ "$PROXIMA" = "null" ]; then
+            echo "Importados ate agora: $TOTAL_IMPORTADOS, Atualizados: $TOTAL_ATUALIZADOS"
+
+            # Concluído sem mais páginas
+            if [ -n "$CONCLUIDO" ] || [ -z "$PROXIMA" ] || [ "$PROXIMA" = "null" ]; then
               echo "Sync concluido! Total: $TOTAL_IMPORTADOS importados, $TOTAL_ATUALIZADOS atualizados"
               break
             fi
 
             PAGINA=$PROXIMA
-            sleep 2
+            sleep 3
           done
 
           echo "Resolvendo transportadoras..."
@@ -54,7 +74,7 @@ jobs:
               echo "Transportadoras resolvidas!"
               break
             fi
-            sleep 2
+            sleep 3
           done
 
           echo "Cron concluido - $(date)"

@@ -5,14 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncCtes } from '@/lib/omie/sync'
 import { createSupabaseAdmin } from '@/lib/supabase/client'
-
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -22,15 +20,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'EMPRESA_ID não configurado' }, { status: 500 })
   }
 
-  // Ler página atual do query param (padrão 1)
   const pagina = Number(req.nextUrl.searchParams.get('pagina') ?? '1')
   const modo = req.nextUrl.searchParams.get('modo') ?? 'sync'
+  const supabase = createSupabaseAdmin()
 
   try {
-    const supabase = createSupabaseAdmin()
-
     if (modo === 'resolver') {
-      // Modo resolver transportadoras
       console.log('[CRON] Resolvendo transportadoras...')
       const res = await fetch(`https://gestao-de-log.vercel.app/api/omie/resolver-transportadoras`, {
         method: 'POST',
@@ -43,7 +38,7 @@ export async function GET(req: NextRequest) {
       const data = await res.json()
 
       if (!data.tem_mais) {
-        // Registrar sync completo como success
+        // Sync totalmente concluído — grava data final
         await supabase.from('sync_logs').insert({
           empresa_id,
           status: 'success',
@@ -58,13 +53,56 @@ export async function GET(req: NextRequest) {
         modo: 'resolver',
         resolvidos: data.resolvidos ?? 0,
         tem_mais: data.tem_mais ?? false,
-        proxima_pagina: data.tem_mais ? null : null,
       })
     }
 
-    // Modo sync - processa 1 lote de 20 páginas
+    // Modo sync — processa 1 lote de 20 páginas com retry
     console.log(`[CRON] Sync lote página ${pagina}`)
-    const resultado = await syncCtes(empresa_id, undefined, pagina)
+
+    let resultado: any = null
+    let lastError = ''
+    const MAX_TENTATIVAS = 3
+
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      try {
+        resultado = await syncCtes(empresa_id, undefined, pagina)
+        break // sucesso — sai do loop
+      } catch (err: any) {
+        lastError = err.message
+        console.error(`[CRON] Tentativa ${tentativa} falhou: ${err.message}`)
+        if (tentativa < MAX_TENTATIVAS) {
+          await new Promise(r => setTimeout(r, 3000 * tentativa))
+        }
+      }
+    }
+
+    // Se todas as tentativas falharam, retorna erro mas SEM status 500
+    // para o GitHub Actions não parar o loop — ele vai tentar a próxima página
+    if (!resultado) {
+      console.error(`[CRON] Lote ${pagina} falhou após ${MAX_TENTATIVAS} tentativas: ${lastError}`)
+      
+      // Pula para próxima página em vez de travar
+      const proximaPagina = pagina + 20
+      return NextResponse.json({
+        ok: false,
+        erro: lastError,
+        pagina_falhou: pagina,
+        proxima_pagina: proximaPagina, // continua do próximo lote
+        importados: 0,
+        atualizados: 0,
+      })
+    }
+
+    // Sucesso — se concluiu tudo, grava data
+    if (!resultado.proxima_pagina) {
+      await supabase.from('sync_logs').insert({
+        empresa_id,
+        status: 'success',
+        finalizado_em: new Date().toISOString(),
+        ctes_importados: resultado.importados,
+        ctes_atualizados: resultado.atualizados,
+      })
+    }
 
     return NextResponse.json({
       ok: true,
@@ -76,8 +114,17 @@ export async function GET(req: NextRequest) {
       total_paginas: resultado.total_paginas ?? null,
       concluido: !resultado.proxima_pagina,
     })
+
   } catch (error: any) {
-    console.error('[CRON] Erro:', error.message)
+    console.error('[CRON] Erro crítico:', error.message)
+    // Mesmo em erro crítico, grava data para o dashboard mostrar algo
+    await supabase.from('sync_logs').insert({
+      empresa_id,
+      status: 'error',
+      finalizado_em: new Date().toISOString(),
+      ctes_importados: 0,
+      ctes_atualizados: 0,
+    }).catch(() => {})
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
