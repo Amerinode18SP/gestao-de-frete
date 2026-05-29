@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
       finalizado_em: new Date().toISOString(),
       ctes_importados: 0,
       ctes_atualizados: 0,
-    }).catch(() => {})
+    }).then(() => {}, () => {})
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
